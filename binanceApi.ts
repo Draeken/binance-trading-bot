@@ -279,7 +279,7 @@ export class Binance {
     const controller = new AbortController();
     const { timeout, ...requestInit } = opt;
     const timeoutId = setTimeout(() => controller.abort(), timeout);
-    const req = fetch(url, requestInit)
+    const req = fetch(url, { ...requestInit, signal: controller.signal })
       .finally(() => clearTimeout(timeoutId))
       .then(this.reqHandler(cb), (err) => cb(err));
     return req;
