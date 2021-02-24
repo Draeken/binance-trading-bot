@@ -8,6 +8,7 @@ export interface BinanceOptions {
   recvWindow: number;
   reconnect: boolean;
   verbose: boolean;
+  test: boolean;
   log: (...s: any[]) => void;
 }
 
@@ -43,6 +44,46 @@ interface BinanceAPIRequest {
   timestamp?: number;
   recvWindow?: number;
   signature?: string;
+  [key: string]: any;
+}
+
+interface BinanceAPIResponseError {
+  code: number;
+  msg: string;
+}
+
+interface BinanceOrderFlags {
+  price?: number;
+  quantity?: number;
+  type?: string;
+  stopLimitPrice?: number;
+  listClientOrderId?: number;
+  limitClientOrderId?: number;
+  stopClientOrderId?: number;
+  stopLimitTimeInForce?: string;
+  timeInForce?: string;
+  newOrderRespType?: number;
+  newClientOrderId?: number;
+  icebergQty?: number;
+  stopPrice?: number;
+  side?: string;
+  symbol?: string;
+}
+
+interface BinanceAPIOrderResponse {
+  symbol: string;
+  orderId: number;
+  orderListId: number; //Unless OCO, value will be -1
+  clientOrderId: string;
+  transactTime: number;
+  price: string;
+  origQty: string;
+  executedQty: string;
+  cummulativeQuoteQty: string;
+  status: string;
+  timeInForce: string;
+  type: string;
+  side: string;
 }
 
 type BinanceAPIRequestInit = RequestInit & { timeout: number };
@@ -63,6 +104,7 @@ export const defaultOptions: BinanceOptions = {
   recvWindow: 5000,
   reconnect: true,
   verbose: true,
+  test: true,
   log: (...args) => console.log(...args),
 };
 
@@ -260,6 +302,64 @@ export class Binance {
     }
   }
 
+  private order = <T extends BinanceAPIResponseError>(
+    side: string,
+    symbol: string,
+    quantity: number,
+    price: number,
+    flags: BinanceOrderFlags = {},
+    callback?: callbackWithError<T>
+  ) => {
+    let endpoint = flags.type === 'OCO' ? 'v3/order/oco' : 'v3/order';
+    if (this.options.test) endpoint += '/test';
+    const opt: BinanceOrderFlags = {
+      symbol,
+      side,
+      type: 'LIMIT',
+      quantity,
+      ...flags,
+    };
+    if (opt.type?.includes('LIMIT')) {
+      opt.price = price;
+      if (opt.type !== 'LIMIT_MAKER') {
+        opt.timeInForce = 'GTC';
+      }
+    }
+    if (opt.type === 'OCO') {
+      opt.price = price;
+      opt.stopLimitTimeInForce = 'GTC';
+      delete opt.type;
+    }
+
+    /*
+     * STOP_LOSS
+     * STOP_LOSS_LIMIT
+     * TAKE_PROFIT
+     * TAKE_PROFIT_LIMIT
+     * LIMIT_MAKER
+     */
+    if (typeof flags.stopPrice !== 'undefined' && opt.type === 'LIMIT') {
+      throw Error('stopPrice: Must set "type" to one of the following: STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT');
+    }
+    this.signedRequest<T>(
+      Binance.base + endpoint,
+      opt,
+      (error, response) => {
+        if (!response) {
+          if (callback) callback(error, response);
+          else this.options.log('Order() error:', error);
+          return;
+        }
+        if (typeof response.msg !== 'undefined' && response.msg === 'Filter failure: MIN_NOTIONAL') {
+          this.options.log('Order quantity too small. See exchangeInfo() for minimum amounts');
+        }
+        if (callback) callback(error, response);
+        else this.options.log(`${side} (${symbol}, ${quantity}, ${price})`, response);
+      },
+      'POST'
+    );
+  };
+
   bookTickers(symbol: string, cb: (data: BinanceBookTicker) => void) {
     const endpoint = `${symbol.toLowerCase()}@bookTicker`;
     const reconnect = () => {
@@ -281,6 +381,38 @@ export class Binance {
         }
       };
       this.signedRequest(Binance.base + 'v3/account', {}, (error: any, data?: BinanceAPIAccount) => callback(error, data));
+    });
+  }
+
+  buy(symbol: string, quantity: number, price: number, flags: BinanceOrderFlags = {}) {
+    return new Promise<BinanceAPIOrderResponse | BinanceAPIResponseError | undefined>((resolve, reject) => {
+      const callback = (error: any, response?: BinanceAPIOrderResponse | BinanceAPIResponseError) => (error ? reject(error) : resolve(response));
+      this.order('BUY', symbol, quantity, price, flags, callback);
+    });
+  }
+
+  sell(symbol: string, quantity: number, price: number, flags: BinanceOrderFlags = {}) {
+    return new Promise<BinanceAPIOrderResponse | BinanceAPIResponseError | undefined>((resolve, reject) => {
+      const callback = (error: any, response?: BinanceAPIOrderResponse | BinanceAPIResponseError) => (error ? reject(error) : resolve(response));
+      this.order('SELL', symbol, quantity, price, flags, callback);
+    });
+  }
+
+  marketBuy(symbol: string, quantity: number, flags: BinanceOrderFlags = { type: 'MARKET' }) {
+    flags.type = flags.type ?? 'MARKET';
+
+    return new Promise<BinanceAPIOrderResponse | BinanceAPIResponseError | undefined>((resolve, reject) => {
+      const callback = (error: any, response?: BinanceAPIOrderResponse | BinanceAPIResponseError) => (error ? reject(error) : resolve(response));
+      this.order('BUY', symbol, quantity, 0, flags, callback);
+    });
+  }
+
+  marketSell(symbol: string, quantity: number, flags: BinanceOrderFlags = { type: 'MARKET' }) {
+    flags.type = flags.type ?? 'MARKET';
+
+    return new Promise<BinanceAPIOrderResponse | BinanceAPIResponseError | undefined>((resolve, reject) => {
+      const callback = (error: any, response?: BinanceAPIOrderResponse | BinanceAPIResponseError) => (error ? reject(error) : resolve(response));
+      this.order('SELL', symbol, quantity, 0, flags, callback);
     });
   }
 }
