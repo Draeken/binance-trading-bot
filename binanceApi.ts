@@ -1,5 +1,4 @@
 import { hmac } from 'https://denopkg.com/chiefbiiko/hmac/mod.ts';
-import { stringify as queryStringify } from 'https://denolib.com/denolib/qs/mod.ts';
 
 export interface BinanceOptions {
   APIKEY: string;
@@ -133,6 +132,22 @@ export class Binance {
     this.options = userOptions;
   }
 
+  private queryStringify(q: any) {
+    // same as qs.stringify with arrayFormat: repeat
+    return Object.keys(q)
+      .reduce((res, key) => {
+        if (Array.isArray(q[key])) {
+          q[key].forEach((v: any) => {
+            res.push(key + '=' + encodeURIComponent(v));
+          });
+        } else if (q[key] !== undefined) {
+          res.push(key + '=' + encodeURIComponent(q[key]));
+        }
+        return res;
+      }, [] as string[])
+      .join('&');
+  }
+
   /**
    * Called when socket is opened, subscriptions are registered for later reference
    * @param {function} opened_callback - a callback function
@@ -227,7 +242,7 @@ export class Binance {
 
   private reqObjPOST(data: BinanceAPIRequest = {}, method = 'POST', key: string): BinanceAPIRequestInit {
     return {
-      body: queryStringify(data, { arrayFormat: 'repeat' }),
+      body: this.queryStringify(data),
       method: method,
       timeout: this.options.recvWindow,
       keepalive: this.options.keepAlive,
@@ -289,7 +304,7 @@ export class Binance {
     this.requireApiSecret('signedRequest');
     data.timestamp = new Date().getTime();
     data.recvWindow = data.recvWindow ?? this.options.recvWindow;
-    const query = method === 'POST' && noDataInSignature ? '' : queryStringify(data, { arrayFormat: 'repeat' });
+    const query = method === 'POST' && noDataInSignature ? '' : this.queryStringify(data);
     const signature = hmac('sha256', this.options.APISECRET, query, 'utf8', 'hex') as string;
     if (method === 'POST') {
       data.signature = signature;
