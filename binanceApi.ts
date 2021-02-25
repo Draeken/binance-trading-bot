@@ -11,7 +11,7 @@ export interface BinanceOptions {
   log: (...s: any[]) => void;
 }
 
-type callbackWithError<T> = (error: any, data?: T) => void;
+type callbackWithError<T> = ((error: null, data: T) => void) & ((error: any) => void);
 
 interface Subscriptions {
   [key: string]: WebSocket;
@@ -411,9 +411,12 @@ export class Binance {
     this.signedRequest<T>(
       Binance.base + endpoint,
       opt,
-      (error, response) => {
+      (error: any, response?: T) => {
+        if (error) {
+          this.options.log('Order() error:', error);
+        }
         if (!response) {
-          if (callback) callback(error, response);
+          if (callback) callback(error);
           else this.options.log('Order() error:', error);
           return;
         }
@@ -490,10 +493,10 @@ export class Binance {
     const opt = {
       timeout: this.options.recvWindow,
     };
-    return new Promise<BinanceSymbolPrice | undefined>((resolve, reject) => {
-      this.proxyRequest(url, opt, (error, data?: BinanceSymbolPrice) => {
+    return new Promise<BinanceSymbolPrice>((resolve, reject) => {
+      this.proxyRequest(url, opt, (error: any, data?: BinanceSymbolPrice) => {
         if (error) return reject(error);
-        return resolve(data);
+        return resolve(data as BinanceSymbolPrice);
       });
     });
   }
@@ -503,10 +506,10 @@ export class Binance {
     const opt = {
       timeout: this.options.recvWindow,
     };
-    return new Promise<Array<BinanceSymbolPrice> | undefined>((resolve, reject) => {
-      this.proxyRequest(url, opt, (error, data?: Array<BinanceSymbolPrice>) => {
+    return new Promise<Array<BinanceSymbolPrice>>((resolve, reject) => {
+      this.proxyRequest(url, opt, (error: any, data?: Array<BinanceSymbolPrice>) => {
         if (error) return reject(error);
-        return resolve(data);
+        return resolve(data as Array<BinanceSymbolPrice>);
       });
     });
   }
