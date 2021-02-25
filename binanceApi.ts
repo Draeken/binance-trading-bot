@@ -87,6 +87,8 @@ interface BinanceAPIOrderResponse {
 
 type BinanceAPIRequestInit = RequestInit & { timeout: number };
 
+type BinanceCandlesticksIntervals = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '6h' | '8h' | '12h' | '1d' | '3d' | '1w' | '1M';
+
 export interface BinanceBookTicker {
   updateId: number; // order book updateId,
   symbol: string; // symbol,
@@ -96,12 +98,37 @@ export interface BinanceBookTicker {
   bestAskQty: string; // best ask qty,
 }
 
+export interface BinanceCandlestick {
+  e: string;
+  E: number; // Event time
+  s: string;
+  k: {
+    t: number; // Kline start time
+    T: number; // Kline close time
+    s: string;
+    i: string;
+    f: number; // First trade ID
+    L: number; // Last trade ID
+    o: string;
+    c: string;
+    h: string;
+    l: string;
+    v: string;
+    n: number; // Number of trades
+    x: false; // Is this kline closed?
+    q: string;
+    V: string;
+    Q: string;
+    B: string;
+  };
+}
+
 export const defaultOptions: BinanceOptions = {
   APIKEY: '',
   APISECRET: '',
   keepAlive: true,
   recvWindow: 5000,
-  reconnect: true,
+  reconnect: false,
   verbose: true,
   test: true,
   log: (...args) => console.log(...args),
@@ -110,6 +137,7 @@ export const defaultOptions: BinanceOptions = {
 export class Binance {
   static base = 'https://api.binance.com/api/';
   static stream = 'wss://stream.binance.com:9443/ws/';
+  static combineStream = 'wss://stream.binance.com:9443/stream?streams=';
   static userAgent = 'Mozilla/4.0 (compatible; Node Binance API)';
   static contentType = 'application/x-www-form-urlencoded';
 
@@ -201,7 +229,6 @@ export class Binance {
     if (this.options.verbose) {
       this.options.log('Subscribed to ' + endpoint);
     }
-    // ws. reconnect = Binance.options.reconnect;
     ws.onopen = this.handleSocketOpen(ws, openedCb);
     ws.onerror = this.handleSocketError(ws);
     ws.onclose = this.handleSocketClose(ws, reconnect);
@@ -210,6 +237,26 @@ export class Binance {
         cb(JSON.parse(event.data));
       } catch (error) {
         binance.options.log('Parse error: ' + error.message);
+      }
+    };
+    return ws;
+  }
+
+  private subscribeCombined<T>(streams: string[], cb: (data: T) => void, reconnect?: () => void, openedCb?: (endpoint: string) => void) {
+    const queryParams = streams.join('/');
+    const ws = new WebSocket(Binance.combineStream + queryParams);
+    if (this.options.verbose) {
+      this.options.log('CombinedStream: Subscribed to [' + Binance.combineStream + '] ' + queryParams);
+    }
+    const binance = this;
+    ws.onopen = this.handleSocketOpen(ws, openedCb);
+    ws.onerror = this.handleSocketError(ws);
+    ws.onclose = this.handleSocketClose(ws, reconnect);
+    ws.onmessage = (event: MessageEvent<string>) => {
+      try {
+        cb(JSON.parse(event.data).data);
+      } catch (error) {
+        binance.options.log('CombinedStreams Parse error: ' + error.message);
       }
     };
     return ws;
@@ -384,6 +431,40 @@ export class Binance {
     };
     const subscription = this.subscribe<BinanceAPIBookTicker>(endpoint, (data) => cb(this.fBookTickerConvertData(data)), reconnect);
     return subscription.url;
+  }
+
+  candlesticks(symbols: string | string[], interval: BinanceCandlesticksIntervals, cb: (data: BinanceCandlestick) => void) {
+    const reconnect = () => {
+      if (this.options.reconnect) {
+        this.candlesticks(symbols, interval, cb);
+      }
+    };
+
+    let subscription;
+    if (Array.isArray(symbols)) {
+      const streams = symbols.map((symbol) => symbol.toLowerCase() + '@kline_' + interval);
+      subscription = this.subscribeCombined(streams, cb, reconnect);
+    } else {
+      const symbol = symbols.toLowerCase();
+      subscription = this.subscribe(symbol + '@kline_' + interval, cb, reconnect);
+    }
+    return subscription.url;
+  }
+
+  closeWebSockets() {
+    Object.values(this.subscriptions).forEach((ws) => {
+      ws.onclose = null;
+      ws.close();
+    });
+  }
+
+  closeWebSocket(endpoint: string) {
+    if (!this.subscriptions[endpoint]) {
+      return;
+    }
+    const ws = this.subscriptions[endpoint];
+    ws.onclose = null;
+    ws.close();
   }
 
   account() {
