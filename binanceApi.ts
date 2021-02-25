@@ -98,6 +98,11 @@ export interface BinanceBookTicker {
   bestAskQty: string; // best ask qty,
 }
 
+export interface BinanceSymbolPrice {
+  symbol: string;
+  price: string;
+}
+
 export interface BinanceCandlestick {
   e: string;
   E: number; // Event time
@@ -477,6 +482,32 @@ export class Binance {
         }
       };
       this.signedRequest(Binance.base + 'v3/account', {}, (error: any, data?: BinanceAPIAccount) => callback(error, data));
+    });
+  }
+
+  price(symbol: string) {
+    const url = Binance.base + 'v3/ticker/price?symbol=' + symbol;
+    const opt = {
+      timeout: this.options.recvWindow,
+    };
+    return new Promise<BinanceSymbolPrice | undefined>((resolve, reject) => {
+      this.proxyRequest(url, opt, (error, data?: BinanceSymbolPrice) => {
+        if (error) return reject(error);
+        return resolve(data);
+      });
+    });
+  }
+
+  prices() {
+    const url = Binance.base + 'v3/ticker/price';
+    const opt = {
+      timeout: this.options.recvWindow,
+    };
+    return new Promise<Array<BinanceSymbolPrice> | undefined>((resolve, reject) => {
+      this.proxyRequest(url, opt, (error, data?: Array<BinanceSymbolPrice>) => {
+        if (error) return reject(error);
+        return resolve(data);
+      });
     });
   }
 
