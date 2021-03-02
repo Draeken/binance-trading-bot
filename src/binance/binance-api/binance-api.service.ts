@@ -1,17 +1,22 @@
-import { hmac } from 'https://denopkg.com/chiefbiiko/hmac/mod.ts';
+/* eslint-disable @typescript-eslint/no-this-alias */
+import { Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { createHmac } from 'crypto';
+import { w3cwebsocket } from 'websocket';
+import fetch from 'node-fetch';
+import AbortController from 'abort-controller';
 
-export interface BinanceOptions {
-  APIKEY: string;
-  APISECRET: string;
-  keepAlive: boolean;
-  recvWindow: number;
-  reconnect: boolean;
-  verbose: boolean;
-  test: boolean;
-  log: (...s: any[]) => void;
-}
+import {
+  BinanceBookTicker,
+  BinanceCandlestick,
+  BinanceOptions,
+  BinanceSymbolPrice,
+} from '../interfaces/binance-api.interface';
 
-type callbackWithError<T> = ((error: null, data: T) => void) & ((error: any) => void);
+type WebSocket = w3cwebsocket;
+
+type callbackWithError<T> = ((error: null, data: T) => void) &
+  ((error: any) => void);
 
 interface Subscriptions {
   [key: string]: WebSocket;
@@ -87,66 +92,42 @@ interface BinanceAPIOrderResponse {
 
 type BinanceAPIRequestInit = RequestInit & { timeout: number };
 
-type BinanceCandlesticksIntervals = '1m' | '3m' | '5m' | '15m' | '30m' | '1h' | '2h' | '4h' | '6h' | '8h' | '12h' | '1d' | '3d' | '1w' | '1M';
+type BinanceCandlesticksIntervals =
+  | '1m'
+  | '3m'
+  | '5m'
+  | '15m'
+  | '30m'
+  | '1h'
+  | '2h'
+  | '4h'
+  | '6h'
+  | '8h'
+  | '12h'
+  | '1d'
+  | '3d'
+  | '1w'
+  | '1M';
 
-export interface BinanceBookTicker {
-  updateId: number; // order book updateId,
-  symbol: string; // symbol,
-  bestBid: string; // best bid price,
-  bestBidQty: string; // best bid qty,
-  bestAsk: string; // best ask price,
-  bestAskQty: string; // best ask qty,
-}
-
-export interface BinanceSymbolPrice {
-  symbol: string;
-  price: string;
-}
-
-export interface BinanceCandlestick {
-  e: string;
-  E: number; // Event time
-  s: string;
-  k: {
-    t: number; // Kline start time
-    T: number; // Kline close time
-    s: string;
-    i: string;
-    f: number; // First trade ID
-    L: number; // Last trade ID
-    o: string;
-    c: string;
-    h: string;
-    l: string;
-    v: string;
-    n: number; // Number of trades
-    x: false; // Is this kline closed?
-    q: string;
-    V: string;
-    Q: string;
-    B: string;
-  };
-}
-
+export const BINANCE_OPTIONS = 'BINANCE_OPTIONS';
 export const defaultOptions: BinanceOptions = {
-  APIKEY: '',
-  APISECRET: '',
   keepAlive: true,
   recvWindow: 5000,
   reconnect: false,
   verbose: true,
-  test: true,
+  test: false,
   log: (...args) => console.log(...args),
 };
 
-export class Binance {
+@Injectable()
+export class BinanceApiService {
   static base = 'https://api.binance.com/api/';
   static stream = 'wss://stream.binance.com:9443/ws/';
   static combineStream = 'wss://stream.binance.com:9443/stream?streams=';
   static userAgent = 'Mozilla/4.0 (compatible; Node Binance API)';
   static contentType = 'application/x-www-form-urlencoded';
 
-  private options;
+  private options: BinanceOptions & { APIKEY: string; APISECRET: string };
   private info = {
     usedWeight: 0,
     futuresLatency: false,
@@ -161,8 +142,13 @@ export class Binance {
   };
   private subscriptions: Subscriptions = {};
 
-  constructor(userOptions: BinanceOptions) {
-    this.options = userOptions;
+  constructor(
+    @Inject(BINANCE_OPTIONS) private userOptions: BinanceOptions,
+    config: ConfigService,
+  ) {
+    const APIKEY = config.get<string>('APIKEY');
+    const APISECRET = config.get<string>('APISECRET');
+    this.options = { ...userOptions, APIKEY, APISECRET };
   }
 
   private queryStringify(q: any) {
@@ -198,12 +184,17 @@ export class Binance {
 
   private handleSocketError(ws: WebSocket) {
     const binance = this;
-    return (error: Event | ErrorEvent) => {
+    return (error: Event | Error) => {
       /* Errors ultimately result in a `close` event.
      see: https://github.com/websockets/ws/blob/828194044bf247af852b31c49e2800d557fedeff/lib/websocket.js#L126 */
 
-      if (error instanceof ErrorEvent) {
-        binance.options.log(`WebSocket error: ${ws.url}`, error.message, error.error);
+      if (error instanceof Error) {
+        binance.options.log(
+          `WebSocket error: ${ws.url}`,
+          error.message,
+          error.name,
+          error.stack,
+        );
       } else {
         binance.options.log(`WebSocket error: ${ws.url}`, error);
       }
@@ -215,7 +206,11 @@ export class Binance {
     return (reason: CloseEvent) => {
       delete binance.subscriptions[ws.url];
 
-      binance.options.log(`WebSocket closed: ${ws.url}`, reason.reason, reason.code);
+      binance.options.log(
+        `WebSocket closed: ${ws.url}`,
+        reason.reason,
+        reason.code,
+      );
       if (binance.options.reconnect && reconnect) {
         binance.options.log('WebSocket reconnecting: ' + ws.url + '...');
         try {
@@ -227,8 +222,13 @@ export class Binance {
     };
   }
 
-  private subscribe<T>(endpoint: string, cb: (data: T) => void, reconnect?: () => void, openedCb?: (endpoint: string) => void) {
-    const ws = new WebSocket(Binance.stream + endpoint);
+  private subscribe<T>(
+    endpoint: string,
+    cb: (data: T) => void,
+    reconnect?: () => void,
+    openedCb?: (endpoint: string) => void,
+  ) {
+    const ws = new w3cwebsocket(BinanceApiService.stream + endpoint);
     const binance = this;
 
     if (this.options.verbose) {
@@ -247,11 +247,21 @@ export class Binance {
     return ws;
   }
 
-  private subscribeCombined<T>(streams: string[], cb: (data: T) => void, reconnect?: () => void, openedCb?: (endpoint: string) => void) {
+  private subscribeCombined<T>(
+    streams: string[],
+    cb: (data: T) => void,
+    reconnect?: () => void,
+    openedCb?: (endpoint: string) => void,
+  ) {
     const queryParams = streams.join('/');
-    const ws = new WebSocket(Binance.combineStream + queryParams);
+    const ws = new w3cwebsocket(BinanceApiService.combineStream + queryParams);
     if (this.options.verbose) {
-      this.options.log('CombinedStream: Subscribed to [' + Binance.combineStream + '] ' + queryParams);
+      this.options.log(
+        'CombinedStream: Subscribed to [' +
+          BinanceApiService.combineStream +
+          '] ' +
+          queryParams,
+      );
     }
     const binance = this;
     ws.onopen = this.handleSocketOpen(ws, openedCb);
@@ -268,7 +278,14 @@ export class Binance {
   }
 
   private fBookTickerConvertData(data: BinanceAPIBookTicker) {
-    const { u: updateId, s: symbol, b: bestBid, B: bestBidQty, a: bestAsk, A: bestAskQty } = data;
+    const {
+      u: updateId,
+      s: symbol,
+      b: bestBid,
+      B: bestBidQty,
+      a: bestAsk,
+      A: bestAskQty,
+    } = data;
 
     return {
       updateId,
@@ -292,15 +309,19 @@ export class Binance {
     return true;
   }
 
-  private reqObjPOST(data: BinanceAPIRequest = {}, method = 'POST', key: string): BinanceAPIRequestInit {
+  private reqObjPOST(
+    data: BinanceAPIRequest = {},
+    method = 'POST',
+    key: string,
+  ): BinanceAPIRequestInit {
     return {
       body: this.queryStringify(data),
       method: method,
       timeout: this.options.recvWindow,
       keepalive: this.options.keepAlive,
       headers: {
-        'User-Agent': Binance.userAgent,
-        'Content-type': Binance.contentType,
+        'User-Agent': BinanceApiService.userAgent,
+        'Content-type': BinanceApiService.contentType,
         'X-MBX-APIKEY': key || '',
       },
     };
@@ -312,8 +333,8 @@ export class Binance {
       timeout: this.options.recvWindow,
       keepalive: this.options.keepAlive,
       headers: {
-        'User-Agent': Binance.userAgent,
-        'Content-type': Binance.contentType,
+        'User-Agent': BinanceApiService.userAgent,
+        'Content-type': BinanceApiService.contentType,
         'X-MBX-APIKEY': key || '',
       },
     };
@@ -326,23 +347,37 @@ export class Binance {
         this.info.statusCode = response.status || 0;
         if (response.url) this.info.lastURL = response.url;
         if (response.headers) {
-          this.info.usedWeight = +(response.headers.get('x-mbx-used-weight-1m') || 0);
-          this.info.orderCount1s = +(response.headers.get('x-mbx-order-count-1s') || 0);
-          this.info.orderCount1m = +(response.headers.get('x-mbx-order-count-1m') || 0);
-          this.info.orderCount1h = +(response.headers.get('x-mbx-order-count-1h') || 0);
-          this.info.orderCount1d = +(response.headers.get('x-mbx-order-count-1d') || 0);
+          this.info.usedWeight = +(
+            response.headers.get('x-mbx-used-weight-1m') || 0
+          );
+          this.info.orderCount1s = +(
+            response.headers.get('x-mbx-order-count-1s') || 0
+          );
+          this.info.orderCount1m = +(
+            response.headers.get('x-mbx-order-count-1m') || 0
+          );
+          this.info.orderCount1h = +(
+            response.headers.get('x-mbx-order-count-1h') || 0
+          );
+          this.info.orderCount1d = +(
+            response.headers.get('x-mbx-order-count-1d') || 0
+          );
         }
       }
       if (!cb) return;
       if (response && response.status !== 200) return cb(response);
       return response.json().then(
         (data) => cb(null, data),
-        (err) => cb(err)
+        (err) => cb(err),
       );
     };
   }
 
-  private proxyRequest<T>(url: string, opt: BinanceAPIRequestInit, cb: callbackWithError<T>) {
+  private proxyRequest<T>(
+    url: string,
+    opt: BinanceAPIRequestInit,
+    cb: callbackWithError<T>,
+  ) {
     const controller = new AbortController();
     const { timeout, ...requestInit } = opt;
     const timeoutId = setTimeout(() => controller.abort(), timeout);
@@ -352,12 +387,21 @@ export class Binance {
     return req;
   }
 
-  private signedRequest<T>(url: string, data: BinanceAPIRequest = {}, callback: callbackWithError<T>, method = 'GET', noDataInSignature = false) {
+  private signedRequest<T>(
+    url: string,
+    data: BinanceAPIRequest = {},
+    callback: callbackWithError<T>,
+    method = 'GET',
+    noDataInSignature = false,
+  ) {
     this.requireApiSecret('signedRequest');
     data.timestamp = new Date().getTime();
     data.recvWindow = data.recvWindow ?? this.options.recvWindow;
-    const query = method === 'POST' && noDataInSignature ? '' : this.queryStringify(data);
-    const signature = hmac('sha256', this.options.APISECRET, query, 'utf8', 'hex') as string;
+    const query =
+      method === 'POST' && noDataInSignature ? '' : this.queryStringify(data);
+    const signature = createHmac('sha256', this.options.APISECRET)
+      .update(query)
+      .digest('hex');
     if (method === 'POST') {
       data.signature = signature;
       const opt = this.reqObjPOST(data, method, this.options.APIKEY);
@@ -375,7 +419,7 @@ export class Binance {
     quantity: number,
     price: number,
     flags: BinanceOrderFlags = {},
-    callback?: callbackWithError<T>
+    callback?: callbackWithError<T>,
   ) => {
     let endpoint = flags.type === 'OCO' ? 'v3/order/oco' : 'v3/order';
     if (this.options.test) endpoint += '/test';
@@ -406,10 +450,12 @@ export class Binance {
      * LIMIT_MAKER
      */
     if (typeof flags.stopPrice !== 'undefined' && opt.type === 'LIMIT') {
-      throw Error('stopPrice: Must set "type" to one of the following: STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT');
+      throw Error(
+        'stopPrice: Must set "type" to one of the following: STOP_LOSS, STOP_LOSS_LIMIT, TAKE_PROFIT, TAKE_PROFIT_LIMIT',
+      );
     }
     this.signedRequest<T>(
-      Binance.base + endpoint,
+      BinanceApiService.base + endpoint,
       opt,
       (error: any, response?: T) => {
         if (error) {
@@ -420,13 +466,22 @@ export class Binance {
           else this.options.log('Order() error:', error);
           return;
         }
-        if (typeof response.msg !== 'undefined' && response.msg === 'Filter failure: MIN_NOTIONAL') {
-          this.options.log('Order quantity too small. See exchangeInfo() for minimum amounts');
+        if (
+          typeof response.msg !== 'undefined' &&
+          response.msg === 'Filter failure: MIN_NOTIONAL'
+        ) {
+          this.options.log(
+            'Order quantity too small. See exchangeInfo() for minimum amounts',
+          );
         }
         if (callback) callback(error, response);
-        else this.options.log(`${side} (${symbol}, ${quantity}, ${price})`, response);
+        else
+          this.options.log(
+            `${side} (${symbol}, ${quantity}, ${price})`,
+            response,
+          );
       },
-      'POST'
+      'POST',
     );
   };
 
@@ -437,11 +492,19 @@ export class Binance {
         this.bookTickers(symbol, cb);
       }
     };
-    const subscription = this.subscribe<BinanceAPIBookTicker>(endpoint, (data) => cb(this.fBookTickerConvertData(data)), reconnect);
+    const subscription = this.subscribe<BinanceAPIBookTicker>(
+      endpoint,
+      (data) => cb(this.fBookTickerConvertData(data)),
+      reconnect,
+    );
     return subscription.url;
   }
 
-  candlesticks(symbols: string | string[], interval: BinanceCandlesticksIntervals, cb: (data: BinanceCandlestick) => void) {
+  candlesticks(
+    symbols: string | string[],
+    interval: BinanceCandlesticksIntervals,
+    cb: (data: BinanceCandlestick) => void,
+  ) {
     const reconnect = () => {
       if (this.options.reconnect) {
         this.candlesticks(symbols, interval, cb);
@@ -450,11 +513,17 @@ export class Binance {
 
     let subscription;
     if (Array.isArray(symbols)) {
-      const streams = symbols.map((symbol) => symbol.toLowerCase() + '@kline_' + interval);
+      const streams = symbols.map(
+        (symbol) => symbol.toLowerCase() + '@kline_' + interval,
+      );
       subscription = this.subscribeCombined(streams, cb, reconnect);
     } else {
       const symbol = symbols.toLowerCase();
-      subscription = this.subscribe(symbol + '@kline_' + interval, cb, reconnect);
+      subscription = this.subscribe(
+        symbol + '@kline_' + interval,
+        cb,
+        reconnect,
+      );
     }
     return subscription.url;
   }
@@ -484,12 +553,16 @@ export class Binance {
           resolve(response);
         }
       };
-      this.signedRequest(Binance.base + 'v3/account', {}, (error: any, data?: BinanceAPIAccount) => callback(error, data));
+      this.signedRequest(
+        BinanceApiService.base + 'v3/account',
+        {},
+        (error: any, data?: BinanceAPIAccount) => callback(error, data),
+      );
     });
   }
 
   price(symbol: string) {
-    const url = Binance.base + 'v3/ticker/price?symbol=' + symbol;
+    const url = BinanceApiService.base + 'v3/ticker/price?symbol=' + symbol;
     const opt = {
       timeout: this.options.recvWindow,
     };
@@ -502,46 +575,88 @@ export class Binance {
   }
 
   prices() {
-    const url = Binance.base + 'v3/ticker/price';
+    const url = BinanceApiService.base + 'v3/ticker/price';
     const opt = {
       timeout: this.options.recvWindow,
     };
     return new Promise<Array<BinanceSymbolPrice>>((resolve, reject) => {
-      this.proxyRequest(url, opt, (error: any, data?: Array<BinanceSymbolPrice>) => {
-        if (error) return reject(error);
-        return resolve(data as Array<BinanceSymbolPrice>);
-      });
+      this.proxyRequest(
+        url,
+        opt,
+        (error: any, data?: Array<BinanceSymbolPrice>) => {
+          if (error) return reject(error);
+          return resolve(data as Array<BinanceSymbolPrice>);
+        },
+      );
     });
   }
 
-  buy(symbol: string, quantity: number, price: number, flags: BinanceOrderFlags = {}) {
-    return new Promise<BinanceAPIOrderResponse | BinanceAPIResponseError | undefined>((resolve, reject) => {
-      const callback = (error: any, response?: BinanceAPIOrderResponse | BinanceAPIResponseError) => (error ? reject(error) : resolve(response));
+  buy(
+    symbol: string,
+    quantity: number,
+    price: number,
+    flags: BinanceOrderFlags = {},
+  ) {
+    return new Promise<
+      BinanceAPIOrderResponse | BinanceAPIResponseError | undefined
+    >((resolve, reject) => {
+      const callback = (
+        error: any,
+        response?: BinanceAPIOrderResponse | BinanceAPIResponseError,
+      ) => (error ? reject(error) : resolve(response));
       this.order('BUY', symbol, quantity, price, flags, callback);
     });
   }
 
-  sell(symbol: string, quantity: number, price: number, flags: BinanceOrderFlags = {}) {
-    return new Promise<BinanceAPIOrderResponse | BinanceAPIResponseError | undefined>((resolve, reject) => {
-      const callback = (error: any, response?: BinanceAPIOrderResponse | BinanceAPIResponseError) => (error ? reject(error) : resolve(response));
+  sell(
+    symbol: string,
+    quantity: number,
+    price: number,
+    flags: BinanceOrderFlags = {},
+  ) {
+    return new Promise<
+      BinanceAPIOrderResponse | BinanceAPIResponseError | undefined
+    >((resolve, reject) => {
+      const callback = (
+        error: any,
+        response?: BinanceAPIOrderResponse | BinanceAPIResponseError,
+      ) => (error ? reject(error) : resolve(response));
       this.order('SELL', symbol, quantity, price, flags, callback);
     });
   }
 
-  marketBuy(symbol: string, quantity: number, flags: BinanceOrderFlags = { type: 'MARKET' }) {
+  marketBuy(
+    symbol: string,
+    quantity: number,
+    flags: BinanceOrderFlags = { type: 'MARKET' },
+  ) {
     flags.type = flags.type ?? 'MARKET';
 
-    return new Promise<BinanceAPIOrderResponse | BinanceAPIResponseError | undefined>((resolve, reject) => {
-      const callback = (error: any, response?: BinanceAPIOrderResponse | BinanceAPIResponseError) => (error ? reject(error) : resolve(response));
+    return new Promise<
+      BinanceAPIOrderResponse | BinanceAPIResponseError | undefined
+    >((resolve, reject) => {
+      const callback = (
+        error: any,
+        response?: BinanceAPIOrderResponse | BinanceAPIResponseError,
+      ) => (error ? reject(error) : resolve(response));
       this.order('BUY', symbol, quantity, 0, flags, callback);
     });
   }
 
-  marketSell(symbol: string, quantity: number, flags: BinanceOrderFlags = { type: 'MARKET' }) {
+  marketSell(
+    symbol: string,
+    quantity: number,
+    flags: BinanceOrderFlags = { type: 'MARKET' },
+  ) {
     flags.type = flags.type ?? 'MARKET';
 
-    return new Promise<BinanceAPIOrderResponse | BinanceAPIResponseError | undefined>((resolve, reject) => {
-      const callback = (error: any, response?: BinanceAPIOrderResponse | BinanceAPIResponseError) => (error ? reject(error) : resolve(response));
+    return new Promise<
+      BinanceAPIOrderResponse | BinanceAPIResponseError | undefined
+    >((resolve, reject) => {
+      const callback = (
+        error: any,
+        response?: BinanceAPIOrderResponse | BinanceAPIResponseError,
+      ) => (error ? reject(error) : resolve(response));
       this.order('SELL', symbol, quantity, 0, flags, callback);
     });
   }
