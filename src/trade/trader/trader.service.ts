@@ -1,22 +1,15 @@
-import { Injectable, OnApplicationBootstrap } from '@nestjs/common';
-import { Observable, Subject } from 'rxjs';
-import {
-  tap,
-  groupBy,
-  map,
-  zipAll,
-  mergeMap,
-  bufferCount,
-} from 'rxjs/operators';
+import { Injectable } from '@nestjs/common';
+import { Observable, Subject, zip } from 'rxjs';
 import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
 import { prettifyKlines } from 'src/binance/binance.orm-mapper';
-import { BinanceCandlestick } from 'src/binance/interfaces/binance-api.interface';
 import { AccountantService } from '../accountant/accountant.service';
 import { Candlestick } from '../interfaces/candlestick.interface';
 
 @Injectable()
-export class TraderService implements OnApplicationBootstrap {
-  private rawStreamSubject$ = new Subject<BinanceCandlestick>();
+export class TraderService {
+  private rawCandleSubjects: {
+    [key: string]: Subject<Candlestick>;
+  };
   private candlestick$: Observable<Candlestick[]>;
 
   constructor(
@@ -24,19 +17,29 @@ export class TraderService implements OnApplicationBootstrap {
     private accountant: AccountantService,
   ) {}
 
-  onApplicationBootstrap() {
-    const size = this.accountant.coinBridgeList.length;
+  startTickers() {
+    this.rawCandleSubjects = this.accountant.coinBridgeList.reduce(
+      (acc, c) => ({
+        ...acc,
+        [c]: new Subject<Candlestick>(),
+      }),
+      {},
+    );
     this.binanceApi.candlesticks(
       this.accountant.coinBridgeList,
       '1m',
-      (klines) => this.rawStreamSubject$.next(klines),
+      (klines) => {
+        const candle = prettifyKlines(klines);
+        this.rawCandleSubjects[candle.coin].next(candle);
+      },
     );
-    this.candlestick$ = this.rawStreamSubject$.pipe(
-      map((k) => prettifyKlines(k)),
-      bufferCount(size, size),
-    );
+    this.candlestick$ = zip(...Object.values(this.rawCandleSubjects));
     this.candlestick$.subscribe((vals) =>
       console.log('new set of candles', vals),
     );
+  }
+
+  stopTickers() {
+    this.binanceApi.closeWebSockets();
   }
 }
