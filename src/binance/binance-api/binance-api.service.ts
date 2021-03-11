@@ -41,7 +41,7 @@ interface BinanceAPIAccount {
   canDeposit: boolean;
   updateTime: number;
   accountType: 'SPOT';
-  balances: Array<{ asset: string; free: number; locked: number }>;
+  balances: Array<{ asset: string; free: string; locked: string }>;
 }
 
 interface BinanceAPIRequest {

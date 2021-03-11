@@ -1,13 +1,12 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
-import { AltCoin } from '../domain/coin.entity';
+import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
+import { Trader } from '../domain/trader.entity';
 import { RepositoryService } from '../repository/repository.service';
 
 @Injectable()
 export class AccountantService implements OnModuleInit {
-  private bridge: string;
-
-  private ratioCoinsTable;
-  private supportedCoinList: AltCoin[];
+  private trader;
+  private supportedCoins: CoinDict;
 
   constructor(private repo: RepositoryService) {}
 
@@ -15,18 +14,18 @@ export class AccountantService implements OnModuleInit {
     return this.repo
       .loadSupportedCoins()
       .then((coins) => {
-        this.supportedCoinList = coins;
+        this.supportedCoins = new CoinDict(coins);
         return coins;
       })
-      .then((coins) => this.repo.loadRatioCoinsTable(coins))
-      .then((ratio) => this.ratioCoinsTable(ratio));
+      .then((coins) => this.repo.loadTrader(coins))
+      .then((traderProps) => (this.trader = new Trader(traderProps)));
   }
 
   get coinList() {
-    return [...this.supportedCoinList];
+    return this.supportedCoins.toList();
   }
 
-  get coinBridgeList() {
-    return this.supportedCoinList.map((c) => c + this.bridge);
+  updateCoins(coinsUpdate: CoinsUpdate[]) {
+    this.supportedCoins.updateCoins(coinsUpdate);
   }
 }

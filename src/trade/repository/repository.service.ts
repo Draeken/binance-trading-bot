@@ -4,6 +4,9 @@ import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
 import { pricesListToDict, ratio } from 'src/binance/binance.orm-mapper';
 import { TradeOptions } from '../interfaces/trade-options.interface';
 import { AltCoin, Bridge } from '../domain/coin.entity';
+import { TraderProps } from '../domain/trader.entity';
+import { ratios } from '../domain/threshold.entity';
+import { AssetProps } from '../domain/asset.value-object';
 
 @Injectable()
 export class RepositoryService {
@@ -29,7 +32,16 @@ export class RepositoryService {
       .then((coins: AltCoin[]) => coins.map(this.addPairs));
   }
 
-  loadRatioCoinsTable(supportedCoinList: AltCoin[]) {
+  loadTrader(supportedCoinList: AltCoin[]): Promise<TraderProps> {
+    return Promise.all([
+      this.loadCoinsRatio(supportedCoinList),
+      this.loadAssets(supportedCoinList),
+    ]).then(
+      (v) => ({ threshold: { ratios: v[0] }, assets: v[1] } as TraderProps),
+    );
+  }
+
+  private loadCoinsRatio(supportedCoinList: AltCoin[]): Promise<ratios> {
     return fs
       .readFile(this.ratioCoinsTablePath, {
         encoding: 'utf-8',
@@ -38,6 +50,26 @@ export class RepositoryService {
       .catch((_) =>
         this.initializeRatioCoinsTable(supportedCoinList.map((c) => c.code)),
       );
+  }
+
+  private loadAssets(supportedCoinList: AltCoin[]): Promise<AssetProps[]> {
+    return this.binanceApi.account().then((v) =>
+      v.balances.map((balance) => {
+        const coin = supportedCoinList.find((c) => c.code === balance.asset);
+        if (!coin) {
+          console.log(
+            'coin ',
+            balance.asset,
+            ' not found in supported coin list',
+            supportedCoinList,
+          );
+        }
+        return {
+          balance: Number.parseFloat(balance.free),
+          coin,
+        };
+      }),
+    );
   }
 
   private addPairs(coin: AltCoin, i: number, list: AltCoin[]): AltCoin {

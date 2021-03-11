@@ -12,8 +12,8 @@ export class Bridge implements Coin {
 
 export class AltCoin implements Coin {
   readonly code: string;
-  private trending: string;
-  private valuation: string;
+  private trending: number;
+  private valuation: number;
   private pairs: Coin[] = [];
 
   constructor(props: CoinProps) {
@@ -22,5 +22,10 @@ export class AltCoin implements Coin {
 
   addPair(coin: Coin) {
     this.pairs.push(coin);
+  }
+
+  update({ trending, valuation }: { trending: number; valuation: number }) {
+    this.trending = trending;
+    this.valuation = valuation;
   }
 }
