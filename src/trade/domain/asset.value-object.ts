@@ -1,8 +1,8 @@
 import { InvalidProps } from 'src/exceptions';
-import { Coin } from './coin.entity';
+import { AltCoin, Bridge } from './coin.entity';
 
 export interface AssetProps {
-  coin: Coin;
+  coin: Bridge | AltCoin;
   balance: number;
 }
 
@@ -17,6 +17,10 @@ export class Asset {
 
   get balance() {
     return this.props.balance;
+  }
+
+  get isBridge() {
+    return (this.coin as Bridge).isBridge == true;
   }
 
   private validate() {

@@ -5,7 +5,7 @@ import { RepositoryService } from '../repository/repository.service';
 
 @Injectable()
 export class AccountantService implements OnModuleInit {
-  private trader;
+  private trader: Trader;
   private supportedCoins: CoinDict;
 
   constructor(private repo: RepositoryService) {}
@@ -27,5 +27,6 @@ export class AccountantService implements OnModuleInit {
 
   updateCoins(coinsUpdate: CoinsUpdate[]) {
     this.supportedCoins.updateCoins(coinsUpdate);
+    this.trader.evaluateMarket();
   }
 }

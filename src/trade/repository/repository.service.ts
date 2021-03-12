@@ -1,17 +1,17 @@
-import { promises as fs } from 'fs';
 import { Inject, Injectable } from '@nestjs/common';
+import { promises as fs } from 'fs';
 import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
 import { pricesListToDict, ratio } from 'src/binance/binance.orm-mapper';
-import { TradeOptions } from '../interfaces/trade-options.interface';
-import { AltCoin, Bridge } from '../domain/coin.entity';
-import { TraderProps } from '../domain/trader.entity';
-import { ratios } from '../domain/threshold.entity';
 import { AssetProps } from '../domain/asset.value-object';
+import { AltCoin, Bridge } from '../domain/coin.entity';
+import { ratios } from '../domain/threshold.entity';
+import { TraderProps } from '../domain/trader.entity';
+import { TradeOptions } from '../interfaces/trade-options.interface';
 
 @Injectable()
 export class RepositoryService {
   private readonly ratioCoinsTablePath = './ratio_coins_table.json';
-  private readonly supportedListCoins = './supported_list_coins.json';
+  private readonly supportedCoinListPath = './supported_list_coins.json';
   private _prices: { [key: string]: string };
   private bridge: Bridge;
 
@@ -24,7 +24,7 @@ export class RepositoryService {
 
   loadSupportedCoins() {
     return fs
-      .readFile(this.supportedListCoins, {
+      .readFile(this.supportedCoinListPath, {
         encoding: 'utf-8',
       })
       .then((buffer) => JSON.parse(buffer))
@@ -37,7 +37,11 @@ export class RepositoryService {
       this.loadCoinsRatio(supportedCoinList),
       this.loadAssets(supportedCoinList),
     ]).then(
-      (v) => ({ threshold: { ratios: v[0] }, assets: v[1] } as TraderProps),
+      (v) =>
+        ({
+          threshold: { ratios: v[0], coins: supportedCoinList },
+          assets: v[1],
+        } as TraderProps),
     );
   }
 
@@ -53,27 +57,36 @@ export class RepositoryService {
   }
 
   private loadAssets(supportedCoinList: AltCoin[]): Promise<AssetProps[]> {
-    return this.binanceApi.account().then((v) =>
-      v.balances.map((balance) => {
-        const coin = supportedCoinList.find((c) => c.code === balance.asset);
+    return this.binanceApi.account().then((v) => {
+      const assetProps = v.balances.map((balance) => {
+        let coin: AltCoin | Bridge = supportedCoinList.find(
+          (c) => c.code === balance.asset,
+        );
         if (!coin) {
-          console.log(
-            'coin ',
-            balance.asset,
-            ' not found in supported coin list',
-            supportedCoinList,
-          );
+          if (balance.asset === this.bridge.code) {
+            coin = this.bridge;
+          } else {
+            console.log(
+              'coin ',
+              balance.asset,
+              ' not found in supported coin list',
+              supportedCoinList,
+            );
+          }
         }
         return {
           balance: Number.parseFloat(balance.free),
           coin,
         };
-      }),
-    );
+      });
+      if (assetProps.every((asset) => asset.coin !== this.bridge)) {
+        assetProps.push({ balance: 0, coin: this.bridge });
+      }
+      return assetProps;
+    });
   }
 
   private addPairs(coin: AltCoin, i: number, list: AltCoin[]): AltCoin {
-    coin.addPair(this.bridge);
     const allPairs = Object.values(this._prices);
     for (let index = i; index < list.length; ++index) {
       if (
