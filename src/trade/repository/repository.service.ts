@@ -91,15 +91,15 @@ export class RepositoryService {
   private addPairs(coin: AltCoin, i: number, list: AltCoin[]): AltCoin {
     const allPairs = Object.values(this._prices);
     for (let index = i; index < list.length; ++index) {
-      if (
-        allPairs.some(
-          (code) =>
-            code === coin.code + list[index].code ||
-            code === list[index].code + coin.code,
-        )
-      ) {
-        coin.addPair(list[i]);
-        list[i].addPair(coin);
+      const pairIndex = allPairs.findIndex(
+        (code) =>
+          code === coin.code + list[index].code ||
+          code === list[index].code + coin.code,
+      );
+      if (pairIndex !== -1) {
+        const marketName = allPairs[pairIndex];
+        coin.addPair(list[i], marketName);
+        list[i].addPair(coin, marketName);
       }
     }
     return coin;

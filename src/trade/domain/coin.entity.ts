@@ -17,13 +17,15 @@ export class AltCoin implements Coin {
   private trending: number;
   private valuation: number;
   private pairs: Set<Coin> = new Set();
+  private pairMarketName: { [key: string]: string };
 
   constructor(props: CoinProps) {
     this.code = props.code;
   }
 
-  addPair(coin: Coin) {
+  addPair(coin: Coin, marketname: string) {
     this.pairs.add(coin);
+    this.pairMarketName[coin.code] = marketname;
   }
 
   hasPair(coin: Coin) {
