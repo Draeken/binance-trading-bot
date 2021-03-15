@@ -18,8 +18,10 @@ export class RepositoryService {
   constructor(
     @Inject('TRADE_OPTIONS') tradeOptions: TradeOptions,
     private binanceApi: BinanceApiService,
-  ) {
-    this.bridge = new Bridge(tradeOptions.bridge);
+  ) {}
+
+  set bridgeCoin(bridge: Bridge) {
+    this.bridge = bridge;
   }
 
   loadSupportedCoins() {

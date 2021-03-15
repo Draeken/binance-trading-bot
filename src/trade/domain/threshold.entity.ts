@@ -13,6 +13,7 @@ export interface ThresholdProps {
 
 export class Threshold {
   private ratios: ratioDict;
+  private growthFactor = 1.3;
 
   constructor({ coins, ratios }: ThresholdProps) {
     this.ratios = Object.entries(ratios).reduce((acc, [coinCode, curDict]) => {
@@ -33,11 +34,12 @@ export class Threshold {
     const coinRatios = this.ratios[coin.code][1];
     return Object.values(coinRatios).reduce(
       (acc, [curCoin, ratio]) => {
-        const feeFactor = 1 - (coin.hasPair(curCoin) ? fee : fee * 2);
-        const tradeValue = coin.ratio(curCoin) * feeFactor - ratio;
+        const feeFactor =
+          1 - this.growthFactor * (coin.hasPair(curCoin) ? fee : fee * 2);
+        const tradeValue = (coin.ratio(curCoin) * feeFactor) / ratio;
         return tradeValue > acc[1] ? [curCoin, tradeValue] : acc;
       },
-      [coin, Number.NEGATIVE_INFINITY],
+      [coin, 0],
     );
   }
 }

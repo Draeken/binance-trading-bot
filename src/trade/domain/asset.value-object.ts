@@ -23,6 +23,10 @@ export class Asset {
     return (this.coin as Bridge).isBridge == true;
   }
 
+  pairWith(coin: AltCoin) {
+    return this.coin.isBridge || (this.coin as AltCoin).hasPair(coin);
+  }
+
   private validate() {
     if (this.coin == null) {
       throw new InvalidProps<AssetProps>('coin not defined', 'coin');

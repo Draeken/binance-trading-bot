@@ -4,14 +4,15 @@ export interface CoinProps {
 
 export interface Coin {
   code: string;
+  isBridge: boolean;
 }
 
 export class Bridge implements Coin {
   readonly isBridge = true;
   constructor(public readonly code: string) {}
 }
-
 export class AltCoin implements Coin {
+  readonly isBridge = false;
   readonly code: string;
   private trending: number;
   private valuation: number;
