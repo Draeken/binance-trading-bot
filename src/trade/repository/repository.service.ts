@@ -3,7 +3,7 @@ import { promises as fs } from 'fs';
 import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
 import { pricesListToDict, ratio } from 'src/binance/binance.orm-mapper';
 import { AssetProps } from '../domain/asset.value-object';
-import { AltCoin, Bridge } from '../domain/coin.entity';
+import { AltCoin, Bridge, Coin } from '../domain/coin.entity';
 import { ratios } from '../domain/threshold.entity';
 import { TraderProps } from '../domain/trader.entity';
 import { TradeOptions } from '../interfaces/trade-options.interface';
@@ -91,15 +91,22 @@ export class RepositoryService {
   private addPairs(coin: AltCoin, i: number, list: AltCoin[]): AltCoin {
     const allPairs = Object.values(this._prices);
     for (let index = i; index < list.length; ++index) {
-      const pairIndex = allPairs.findIndex(
-        (code) =>
-          code === coin.code + list[index].code ||
-          code === list[index].code + coin.code,
-      );
-      if (pairIndex !== -1) {
-        const marketName = allPairs[pairIndex];
-        coin.addPair(list[i], marketName);
-        list[i].addPair(coin, marketName);
+      let base: Coin;
+      let quote: Coin;
+      for (let j = 0; j < allPairs.length; ++j) {
+        if (allPairs[j] === coin.code + list[index].code) {
+          base = coin;
+          quote = list[index];
+          break;
+        } else if (allPairs[j] === list[index].code + coin.code) {
+          quote = coin;
+          base = list[index];
+          break;
+        }
+      }
+      if (base != undefined) {
+        coin.addPair(list[i], { base, quote });
+        list[i].addPair(coin, { base, quote });
       }
     }
     return coin;

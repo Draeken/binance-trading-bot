@@ -1,11 +1,10 @@
 /* eslint-disable @typescript-eslint/no-this-alias */
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHmac } from 'crypto';
-import { w3cwebsocket } from 'websocket';
-import fetch from 'node-fetch';
 import AbortController from 'abort-controller';
-
+import { createHmac } from 'crypto';
+import fetch from 'node-fetch';
+import { w3cwebsocket } from 'websocket';
 import {
   BinanceBookTicker,
   BinanceCandlestick,
@@ -51,7 +50,7 @@ interface BinanceAPIRequest {
   [key: string]: any;
 }
 
-interface BinanceAPIResponseError {
+export interface BinanceAPIResponseError {
   code: number;
   msg: string;
 }
@@ -59,7 +58,7 @@ interface BinanceAPIResponseError {
 interface BinanceOrderFlags {
   price?: number;
   quantity?: number;
-  type?: string;
+  type?: 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'LIMIT_MAKER' | 'OCO';
   stopLimitPrice?: number;
   listClientOrderId?: number;
   limitClientOrderId?: number;
@@ -74,7 +73,7 @@ interface BinanceOrderFlags {
   symbol?: string;
 }
 
-interface BinanceAPIOrderResponse {
+export interface BinanceAPIOrderResponse {
   symbol: string;
   orderId: number;
   orderListId: number; //Unless OCO, value will be -1
@@ -558,6 +557,19 @@ export class BinanceApiService {
         {},
         (error: any, data?: BinanceAPIAccount) => callback(error, data),
       );
+    });
+  }
+
+  averagePrice(symbol: string) {
+    const url = BinanceApiService.base + 'vv3/avgPrice?symbol=' + symbol;
+    const opt = {
+      timeout: this.options.recvWindow,
+    };
+    return new Promise<number>((resolve, reject) => {
+      this.proxyRequest(url, opt, (error: any, data?: { price: string }) => {
+        if (error) return reject(error);
+        return resolve(Number.parseFloat(data.price));
+      });
     });
   }
 

@@ -1,3 +1,4 @@
+import { TradeStatus } from 'src/trade/domain/trade.entity';
 import { Candlestick } from 'src/trade/interfaces/candlestick.interface';
 import {
   BinanceCandlestick,
@@ -22,3 +23,22 @@ export const prettifyKlines = (e: BinanceCandlestick): Candlestick => ({
   high: e.k.h,
   low: e.k.l,
 });
+
+export const statusToEnum = (string): TradeStatus => {
+  switch (string) {
+    case 'CANCELED':
+      return TradeStatus.CANCELED;
+    case 'EXPIRED':
+      return TradeStatus.EXPIRED;
+    case 'FILLED':
+      return TradeStatus.FILLED;
+    case 'NEW':
+      return TradeStatus.NEW;
+    case 'PARTIALLY_FILLED':
+      return TradeStatus.PARTIALLY_FILLED;
+    case 'PENDING_CANCEL':
+      return TradeStatus.PENDING_CANCEL;
+    case 'REJECTED':
+      return TradeStatus.REJECTED;
+  }
+};

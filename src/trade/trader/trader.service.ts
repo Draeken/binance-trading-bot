@@ -1,7 +1,11 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { Subject, Subscription, zip } from 'rxjs';
-import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
-import { prettifyKlines } from 'src/binance/binance.orm-mapper';
+import {
+  BinanceAPIOrderResponse,
+  BinanceAPIResponseError,
+  BinanceApiService,
+} from 'src/binance/binance-api/binance-api.service';
+import { prettifyKlines, statusToEnum } from 'src/binance/binance.orm-mapper';
 import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
 import { Operation } from '../domain/operation.entity';
@@ -103,10 +107,30 @@ export class TraderService implements OnModuleInit {
   }
 
   private executeTrade(trade: Trade) {
-    if (trade.isFromBridge) {
-      // buy
-    } else {
-      // sell
-    }
+    const { type, base, quote } = trade.operation;
+    const marketName = base.code + quote.code;
+    // care for direct pair with different valuation
+    this.binanceApi
+      .price(marketName)
+      .then((res) => {
+        const price = Number.parseFloat(res.price);
+        if (type === 'SELL') {
+          return this.binanceApi.sell(marketName, trade.amount, price, {
+            type: 'LIMIT',
+          });
+        } else {
+          const quantity = Math.floor(trade.amount / price);
+          return this.binanceApi.buy(marketName, quantity, price, {
+            type: 'LIMIT',
+          });
+        }
+      })
+      .then((res) => {
+        if ((res as BinanceAPIResponseError).code != null) {
+          throw new Error((res as BinanceAPIResponseError).msg);
+        }
+        const { orderId, status } = res as BinanceAPIOrderResponse;
+        trade.updateAfterInit(orderId, statusToEnum(status));
+      });
   }
 }
