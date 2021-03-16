@@ -15,11 +15,19 @@ export class Bridge implements Coin {
   readonly trending = 0;
   constructor(public readonly code: string) {}
 }
+
+export interface CoinValueFilter {
+  min: number;
+  max: number;
+  step: number;
+}
 export class AltCoin implements Coin {
   readonly isBridge = false;
   readonly code: string;
   private _trending: number;
   private _valuation: number;
+  private _quantityFilters: CoinValueFilter;
+  private _priceFilters: CoinValueFilter;
   private pairMarketName: { [key: string]: { base: Coin; quote: Coin } } = {};
 
   constructor(props: CoinProps) {
@@ -46,7 +54,18 @@ export class AltCoin implements Coin {
     return { ...this.pairMarketName[coin.code] };
   }
 
-  update({ trending, valuation }: { trending: number; valuation: number }) {
+  updateFilters(price: CoinValueFilter, quantity: CoinValueFilter) {
+    this._priceFilters = price;
+    this._quantityFilters = quantity;
+  }
+
+  updateMarket({
+    trending,
+    valuation,
+  }: {
+    trending: number;
+    valuation: number;
+  }) {
     this._trending = trending;
     this._valuation = valuation;
   }

@@ -7,6 +7,11 @@ export interface BinanceOptions {
   log: (...s: any[]) => void;
 }
 
+export interface BinanceAPIResponseError {
+  code: number;
+  msg: string;
+}
+
 export interface BinanceBookTicker {
   updateId: number; // order book updateId,
   symbol: string; // symbol,
@@ -44,4 +49,39 @@ export interface BinanceCandlestick {
     Q: string;
     B: string;
   };
+}
+
+export interface FilterSymbolPrice {
+  filterType: 'PRICE_FILTER';
+  minPrice: string;
+  maxPrice: string;
+  tickSize: string;
+}
+
+export interface FilterSymbolLotSize {
+  filterType: 'LOT_SIZE';
+  minQty: string;
+  maxQty: string;
+  stepSize: string;
+}
+
+export interface BinanceExchangeInfo {
+  timezone: string;
+  serverTime: number;
+  symbols: Array<{
+    symbol: string;
+    status: string;
+    baseAsset: string;
+    baseAssetPrecision: number;
+    quoteAsset: string;
+    quoteAssetPrecision: number;
+    baseCommissionPrecision: number;
+    quoteCommissionPrecision: number;
+    icebergAllowed: boolean;
+    ocoAllowed: boolean;
+    quoteOrderQtyMarketAllowed: boolean;
+    isSpotTradingAllowed: boolean;
+    isMarginTradingAllowed: boolean;
+    filters: Array<FilterSymbolPrice | FilterSymbolLotSize>;
+  }>;
 }

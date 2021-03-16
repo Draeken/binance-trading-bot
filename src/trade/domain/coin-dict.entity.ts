@@ -19,7 +19,11 @@ export class CoinDict {
 
   updateCoins(updates: CoinsUpdate[]) {
     for (const update of updates) {
-      this.dict[update.code].update(update);
+      this.dict[update.code].updateMarket(update);
     }
+  }
+
+  get(code: string) {
+    return this.dict[code];
   }
 }

@@ -1,3 +1,4 @@
+import { CoinDict } from './coin-dict.entity';
 import { AltCoin } from './coin.entity';
 
 export type ratioDict = {
@@ -8,7 +9,7 @@ export type ratios = { [key: string]: { [key: string]: string } };
 
 export interface ThresholdProps {
   ratios: ratios;
-  coins: AltCoin[];
+  coins: CoinDict;
 }
 
 export class Threshold {
@@ -20,12 +21,12 @@ export class Threshold {
       const dict = Object.entries(curDict).reduce(
         (acc, [coinCode, ratioStr]) => {
           const ratio = Number.parseFloat(ratioStr);
-          const coin = coins.find((c) => c.code === coinCode);
+          const coin = coins.get(coinCode);
           return { ...acc, [coinCode]: [coin, ratio] };
         },
         {},
       );
-      const coin = coins.find((c) => c.code === coinCode);
+      const coin = coins.get(coinCode);
       return { ...acc, [coinCode]: [coin, dict] };
     }, {} as ratioDict);
   }

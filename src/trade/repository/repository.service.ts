@@ -2,7 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
 import { pricesListToDict, ratio } from 'src/binance/binance.orm-mapper';
+import {
+  FilterSymbolLotSize,
+  FilterSymbolPrice,
+} from 'src/binance/interfaces/binance-api.interface';
 import { AssetProps } from '../domain/asset.value-object';
+import { CoinDict } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge, Coin } from '../domain/coin.entity';
 import { ratios } from '../domain/threshold.entity';
 import { TraderProps } from '../domain/trader.entity';
@@ -11,6 +16,7 @@ import { TradeOptions } from '../interfaces/trade-options.interface';
 @Injectable()
 export class RepositoryService {
   private readonly ratioCoinsTablePath = './ratio_coins_table.json';
+  private readonly coinInfosPath = './coin_infos.json';
   private readonly supportedCoinListPath = './supported_list_coins.json';
   private _prices: { [key: string]: string };
   private bridge: Bridge;
@@ -30,13 +36,67 @@ export class RepositoryService {
         encoding: 'utf-8',
       })
       .then((buffer) => JSON.parse(buffer))
-      .then((list: string[]) => list.map((code) => new AltCoin({ code })))
-      .then((coins: AltCoin[]) => coins.map(this.addPairs));
+      .then((list: string[]) => list.map((code) => new AltCoin({ code })));
   }
 
-  loadTrader(supportedCoinList: AltCoin[]): Promise<TraderProps> {
+  loadCoinInfos(coins: CoinDict) {
+    return fs
+      .readFile(this.coinInfosPath, { encoding: 'utf-8' })
+      .then((buffer) => JSON.parse(buffer))
+      .then((dict: any) => {
+        const missingInfo: AltCoin[] = [];
+        coins.toList().forEach((coin) => {
+          const coinInfo = dict[coin.code];
+          if (coinInfo) {
+            coin.updateFilters(
+              coinInfo.filters.price,
+              coinInfo.filters.quantity,
+            );
+            coinInfo.pairs.forEach((pair) => {
+              coin.addPair(coins.get(pair.coin), {
+                base: coins.get(pair.base),
+                quote: coins.get(pair.quote),
+              });
+            });
+          } else {
+            missingInfo.push(coin);
+          }
+        });
+        return missingInfo;
+      })
+      .then((missingInfoCoins) => {
+        this.binanceApi.exchangeInfo().then((infos) => {
+          missingInfoCoins.forEach((coin, i) => {
+            const coinMarket = coin.code + this.bridge.code;
+            const coinInfo = infos.symbols.find((i) => i.symbol === coinMarket);
+            const coinFilterPrice = coinInfo.filters.find(
+              (f) => f.filterType === 'PRICE_FILTER',
+            ) as FilterSymbolPrice;
+            const coinFilterQuantity = coinInfo.filters.find(
+              (f) => f.filterType === 'LOT_SIZE',
+            ) as FilterSymbolLotSize;
+            coin.updateFilters(
+              {
+                min: Number.parseFloat(coinFilterPrice.minPrice),
+                max: Number.parseFloat(coinFilterPrice.maxPrice),
+                step: Number.parseFloat(coinFilterPrice.tickSize),
+              },
+              {
+                min: Number.parseFloat(coinFilterQuantity.minQty),
+                max: Number.parseFloat(coinFilterQuantity.maxQty),
+                step: Number.parseFloat(coinFilterQuantity.stepSize),
+              },
+            );
+            this.addPairs(coin, i, missingInfoCoins, infos.symbols);
+          });
+        });
+        return coins;
+      });
+  }
+
+  loadTrader(supportedCoinList: CoinDict): Promise<TraderProps> {
     return Promise.all([
-      this.loadCoinsRatio(supportedCoinList),
+      this.loadCoinsRatio(supportedCoinList.toList()),
       this.loadAssets(supportedCoinList),
     ]).then(
       (v) =>
@@ -58,12 +118,10 @@ export class RepositoryService {
       );
   }
 
-  private loadAssets(supportedCoinList: AltCoin[]): Promise<AssetProps[]> {
+  private loadAssets(supportedCoinList: CoinDict): Promise<AssetProps[]> {
     return this.binanceApi.account().then((v) => {
       const assetProps = v.balances.map((balance) => {
-        let coin: AltCoin | Bridge = supportedCoinList.find(
-          (c) => c.code === balance.asset,
-        );
+        let coin: AltCoin | Bridge = supportedCoinList.get(balance.asset);
         if (!coin) {
           if (balance.asset === this.bridge.code) {
             coin = this.bridge;
@@ -72,7 +130,7 @@ export class RepositoryService {
               'coin ',
               balance.asset,
               ' not found in supported coin list',
-              supportedCoinList,
+              supportedCoinList.toList(),
             );
           }
         }
@@ -88,17 +146,21 @@ export class RepositoryService {
     });
   }
 
-  private addPairs(coin: AltCoin, i: number, list: AltCoin[]): AltCoin {
-    const allPairs = Object.values(this._prices);
+  private addPairs(
+    coin: AltCoin,
+    i: number,
+    list: AltCoin[],
+    symbolList: { symbol: string }[],
+  ): AltCoin {
     for (let index = i; index < list.length; ++index) {
       let base: Coin;
       let quote: Coin;
-      for (let j = 0; j < allPairs.length; ++j) {
-        if (allPairs[j] === coin.code + list[index].code) {
+      for (let j = 0; j < symbolList.length; ++j) {
+        if (symbolList[j].symbol === coin.code + list[index].code) {
           base = coin;
           quote = list[index];
           break;
-        } else if (allPairs[j] === list[index].code + coin.code) {
+        } else if (symbolList[j].symbol === list[index].code + coin.code) {
           quote = coin;
           base = list[index];
           break;

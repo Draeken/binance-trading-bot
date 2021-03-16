@@ -2,10 +2,10 @@ import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { Subject, Subscription, zip } from 'rxjs';
 import {
   BinanceAPIOrderResponse,
-  BinanceAPIResponseError,
   BinanceApiService,
 } from 'src/binance/binance-api/binance-api.service';
 import { prettifyKlines, statusToEnum } from 'src/binance/binance.orm-mapper';
+import { BinanceAPIResponseError } from 'src/binance/interfaces/binance-api.interface';
 import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
 import { Operation } from '../domain/operation.entity';
@@ -39,8 +39,9 @@ export class TraderService implements OnModuleInit {
       .loadSupportedCoins()
       .then((coins) => {
         this.supportedCoins = new CoinDict(coins);
-        return coins;
+        return this.supportedCoins;
       })
+      .then((coinDict) => this.repo.loadCoinInfos(coinDict))
       .then((coins) => this.repo.loadTrader(coins))
       .then((traderProps) => (this.trader = new Trader(traderProps)));
   }
@@ -119,7 +120,8 @@ export class TraderService implements OnModuleInit {
             type: 'LIMIT',
           });
         } else {
-          const quantity = Math.floor(trade.amount / price);
+          const quantity = Math.floor(trade.amount / price); // check filter validity
+          // update balance
           return this.binanceApi.buy(marketName, quantity, price, {
             type: 'LIMIT',
           });

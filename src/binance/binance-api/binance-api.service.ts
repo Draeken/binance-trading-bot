@@ -6,8 +6,10 @@ import { createHmac } from 'crypto';
 import fetch from 'node-fetch';
 import { w3cwebsocket } from 'websocket';
 import {
+  BinanceAPIResponseError,
   BinanceBookTicker,
   BinanceCandlestick,
+  BinanceExchangeInfo,
   BinanceOptions,
   BinanceSymbolPrice,
 } from '../interfaces/binance-api.interface';
@@ -48,11 +50,6 @@ interface BinanceAPIRequest {
   recvWindow?: number;
   signature?: string;
   [key: string]: any;
-}
-
-export interface BinanceAPIResponseError {
-  code: number;
-  msg: string;
 }
 
 interface BinanceOrderFlags {
@@ -560,8 +557,22 @@ export class BinanceApiService {
     });
   }
 
+  exchangeInfo() {
+    const url = BinanceApiService.base + 'v3/exchangeInfo';
+    const opt: BinanceAPIRequestInit = {
+      timeout: this.options.recvWindow,
+      method: 'GET',
+    };
+    return new Promise<BinanceExchangeInfo>((resolve, reject) => {
+      this.proxyRequest(url, opt, (error: any, data?: BinanceExchangeInfo) => {
+        if (error) return reject(error);
+        return resolve(data);
+      });
+    });
+  }
+
   averagePrice(symbol: string) {
-    const url = BinanceApiService.base + 'vv3/avgPrice?symbol=' + symbol;
+    const url = BinanceApiService.base + 'v3/avgPrice?symbol=' + symbol;
     const opt = {
       timeout: this.options.recvWindow,
     };
