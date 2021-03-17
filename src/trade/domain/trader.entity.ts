@@ -34,7 +34,11 @@ export class Trader {
 
   evaluateMarket() {
     const bestTrades = this.assets
-      .filter((asset) => !asset.isBridge)
+      .filter(
+        (asset) =>
+          !asset.isBridge &&
+          this.operations.every((op) => asset.coin.code !== op.assetCode),
+      )
       .map((asset) => ({
         asset,
         trade: this.threshold.findBestTrade(asset.coin as AltCoin, 0.001),

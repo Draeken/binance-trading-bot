@@ -110,7 +110,6 @@ export class TraderService implements OnModuleInit {
   private executeTrade(trade: Trade) {
     const { type, base, quote } = trade.operation;
     const marketName = base.code + quote.code;
-    // care for direct pair with different valuation
     this.binanceApi
       .price(marketName)
       .then((res) => {
@@ -120,7 +119,7 @@ export class TraderService implements OnModuleInit {
             type: 'LIMIT',
           });
         } else {
-          const quantity = Math.floor(trade.amount / price); // check filter validity
+          const quantity = base.checkQuantity(Math.floor(trade.amount / price));
           // update balance
           return this.binanceApi.buy(marketName, quantity, price, {
             type: 'LIMIT',

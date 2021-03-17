@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
-import { pricesListToDict, ratio } from 'src/binance/binance.orm-mapper';
+import {
+  pricesListToDict,
+  ratio,
+  stepToPrecision,
+} from 'src/binance/binance.orm-mapper';
 import {
   FilterSymbolLotSize,
   FilterSymbolPrice,
@@ -79,12 +83,12 @@ export class RepositoryService {
               {
                 min: Number.parseFloat(coinFilterPrice.minPrice),
                 max: Number.parseFloat(coinFilterPrice.maxPrice),
-                step: Number.parseFloat(coinFilterPrice.tickSize),
+                precision: stepToPrecision(coinFilterPrice.tickSize),
               },
               {
                 min: Number.parseFloat(coinFilterQuantity.minQty),
                 max: Number.parseFloat(coinFilterQuantity.maxQty),
-                step: Number.parseFloat(coinFilterQuantity.stepSize),
+                precision: stepToPrecision(coinFilterQuantity.stepSize),
               },
             );
             this.addPairs(coin, i, missingInfoCoins, infos.symbols);

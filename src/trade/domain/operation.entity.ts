@@ -36,6 +36,10 @@ export class Operation {
     this.onTrade(this.firstTrade);
   }
 
+  get assetCode() {
+    return this.asset.coin.code;
+  }
+
   private computeAmount(ratioGrowth: number) {
     let amountFactor = 0.25;
     if (ratioGrowth > 1.15) {

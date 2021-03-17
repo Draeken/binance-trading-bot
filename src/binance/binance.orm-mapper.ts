@@ -42,3 +42,11 @@ export const statusToEnum = (string): TradeStatus => {
       return TradeStatus.REJECTED;
   }
 };
+
+export const stepToPrecision = (step: string) => {
+  const indexOfOne = step.indexOf('1');
+  if (indexOfOne === 0) {
+    return 1 - step.indexOf('.');
+  }
+  return indexOfOne - 1;
+};

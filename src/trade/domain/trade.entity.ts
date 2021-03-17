@@ -15,7 +15,7 @@ export class Trade {
   private status: TradeStatus;
   private id: number;
   private _quote: Coin;
-  private _base: Coin;
+  private _base: AltCoin;
   private _type: 'SELL' | 'BUY';
 
   constructor(private _from: Coin, private _to: Coin, private _amount: number) {
@@ -23,16 +23,16 @@ export class Trade {
     this.lastUpdateAt = Date.now();
     if (_from.isBridge) {
       this._quote = _from;
-      this._base = _to;
+      this._base = _to as AltCoin;
       this._type = 'BUY';
     } else if (_to.isBridge) {
       this._quote = _to;
-      this._base = _from;
+      this._base = _from as AltCoin;
       this._type = 'SELL';
     } else {
       const { base, quote } = (_from as AltCoin).pairInfo(_to);
       this._quote = quote;
-      this._base = base;
+      this._base = base as AltCoin;
       this._type = _from === base ? 'SELL' : 'BUY';
     }
   }
@@ -48,7 +48,11 @@ export class Trade {
   }
 
   get operation() {
-    return { type: this._type, base: this._base, quote: this._quote };
+    return {
+      type: this._type,
+      base: this._base,
+      quote: this._quote,
+    };
   }
 
   get from() {

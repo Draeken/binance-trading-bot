@@ -19,7 +19,7 @@ export class Bridge implements Coin {
 export interface CoinValueFilter {
   min: number;
   max: number;
-  step: number;
+  precision: number;
 }
 export class AltCoin implements Coin {
   readonly isBridge = false;
@@ -57,6 +57,17 @@ export class AltCoin implements Coin {
   updateFilters(price: CoinValueFilter, quantity: CoinValueFilter) {
     this._priceFilters = price;
     this._quantityFilters = quantity;
+  }
+
+  checkQuantity(quantity: number) {
+    if (quantity < this._quantityFilters.min) {
+      throw new Error('quantity too small: ' + quantity);
+    }
+    if (quantity > this._quantityFilters.max && this._quantityFilters.max > 0) {
+      throw new Error('quantity too large: ' + quantity);
+    }
+    const precisionFactor = 10 ** this._quantityFilters.precision;
+    return Math.floor(quantity * precisionFactor) / precisionFactor;
   }
 
   updateMarket({
