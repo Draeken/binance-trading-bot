@@ -19,6 +19,10 @@ export class Asset {
     return this.props.balance;
   }
 
+  set balance(balance: number) {
+    this.props.balance = balance;
+  }
+
   get isBridge() {
     return (this.coin as Bridge).isBridge == true;
   }

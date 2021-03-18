@@ -6,6 +6,7 @@ import { createHmac } from 'crypto';
 import fetch from 'node-fetch';
 import { w3cwebsocket } from 'websocket';
 import {
+  BinanceAPIOrderResponse,
   BinanceAPIResponseError,
   BinanceBookTicker,
   BinanceCandlestick,
@@ -68,22 +69,6 @@ interface BinanceOrderFlags {
   stopPrice?: number;
   side?: string;
   symbol?: string;
-}
-
-export interface BinanceAPIOrderResponse {
-  symbol: string;
-  orderId: number;
-  orderListId: number; //Unless OCO, value will be -1
-  clientOrderId: string;
-  transactTime: number;
-  price: string;
-  origQty: string;
-  executedQty: string;
-  cummulativeQuoteQty: string;
-  status: string;
-  timeInForce: string;
-  type: string;
-  side: string;
 }
 
 type BinanceAPIRequestInit = RequestInit & { timeout: number };

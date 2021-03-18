@@ -85,3 +85,19 @@ export interface BinanceExchangeInfo {
     filters: Array<FilterSymbolPrice | FilterSymbolLotSize>;
   }>;
 }
+
+export interface BinanceAPIOrderResponse {
+  symbol: string;
+  orderId: number;
+  orderListId: number; //Unless OCO, value will be -1
+  clientOrderId: string;
+  transactTime: number;
+  price: string;
+  origQty: string;
+  executedQty: string;
+  cummulativeQuoteQty: string;
+  status: string;
+  timeInForce: string;
+  type: string;
+  side: string;
+}

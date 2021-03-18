@@ -10,11 +10,23 @@ export interface TraderProps {
 }
 
 export class Trader {
-  private assets: Asset[];
+  private assets: Asset[] = [];
+  private _bridgeAsset: Asset;
   private threshold: Threshold;
   private operations: Operation[];
 
   constructor(props: TraderProps) {
+    for (const assetProps of props.assets) {
+      const asset = createAsset(assetProps);
+      if (asset == null) {
+        continue;
+      }
+      if (asset.isBridge) {
+        this._bridgeAsset = asset;
+      } else {
+        this.assets.push(asset);
+      }
+    }
     this.assets = props.assets
       .map((a) => {
         try {
@@ -34,10 +46,8 @@ export class Trader {
 
   evaluateMarket() {
     const bestTrades = this.assets
-      .filter(
-        (asset) =>
-          !asset.isBridge &&
-          this.operations.every((op) => asset.coin.code !== op.assetCode),
+      .filter((asset) =>
+        this.operations.every((op) => asset.coin.code !== op.assetCode),
       )
       .map((asset) => ({
         asset,
@@ -60,5 +70,31 @@ export class Trader {
 
   addOperation(operation: Operation) {
     this.operations.push(operation);
+    operation.onFinishCB = (op: Operation, targetBalance: number) => {
+      const i = this.operations.findIndex((o) => o === op);
+      this.operations.splice(i, 1);
+      const targetCoin = op.targetCoin;
+      const targetAsset =
+        this.assets.find((a) => a.coin === targetCoin) ??
+        new Asset({ coin: targetCoin, balance: targetBalance });
+      targetAsset.balance = targetBalance;
+    };
+  }
+
+  get bridgeAsset() {
+    return this._bridgeAsset;
   }
 }
+
+const createAsset = (props: AssetProps) => {
+  try {
+    return new Asset(props);
+  } catch (e) {
+    if (
+      !(e instanceof InvalidProps) ||
+      (e as InvalidProps<AssetProps>).prop !== 'coin'
+    ) {
+      throw e;
+    }
+  }
+};

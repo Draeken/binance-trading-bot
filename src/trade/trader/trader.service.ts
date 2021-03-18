@@ -1,15 +1,19 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { Subject, Subscription, zip } from 'rxjs';
+import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
+import { prettifyKlines, statusToEnum } from 'src/binance/binance.orm-mapper';
 import {
   BinanceAPIOrderResponse,
-  BinanceApiService,
-} from 'src/binance/binance-api/binance-api.service';
-import { prettifyKlines, statusToEnum } from 'src/binance/binance.orm-mapper';
-import { BinanceAPIResponseError } from 'src/binance/interfaces/binance-api.interface';
+  BinanceAPIResponseError,
+} from 'src/binance/interfaces/binance-api.interface';
 import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
 import { Operation } from '../domain/operation.entity';
-import { Trade } from '../domain/trade.entity';
+import {
+  Trade,
+  TradeBaseQuoteAmount,
+  TradeStatus,
+} from '../domain/trade.entity';
 import { Trader } from '../domain/trader.entity';
 import { Candlestick } from '../interfaces/candlestick.interface';
 import { TradeOptions } from '../interfaces/trade-options.interface';
@@ -101,7 +105,7 @@ export class TraderService implements OnModuleInit {
     this.trader.addOperation(
       new Operation({
         ...trade,
-        bridge: this.bridge,
+        bridgeAsset: this.trader.bridgeAsset,
         onTrade: this.executeTrade,
       }),
     );
@@ -130,8 +134,39 @@ export class TraderService implements OnModuleInit {
         if ((res as BinanceAPIResponseError).code != null) {
           throw new Error((res as BinanceAPIResponseError).msg);
         }
-        const { orderId, status } = res as BinanceAPIOrderResponse;
-        trade.updateAfterInit(orderId, statusToEnum(status));
+        const { orderId, status: rawStatus } = res as BinanceAPIOrderResponse;
+        const status = statusToEnum(rawStatus);
+        const tradeAmount: TradeBaseQuoteAmount =
+          status === TradeStatus.FILLED
+            ? orderResponseToTradeAmount(res as BinanceAPIOrderResponse)
+            : {
+                base: 0,
+                quote: 0,
+              };
+        trade.updateAfterInit(orderId, statusToEnum(status), tradeAmount);
       });
   }
 }
+
+const orderResponseToTradeAmount = (
+  response: BinanceAPIOrderResponse,
+): TradeBaseQuoteAmount => {
+  const price = Number.parseFloat(response.price);
+  const executedQty = Number.parseFloat(response.executedQty);
+  if (
+    price == NaN ||
+    executedQty == NaN ||
+    ['SELL', 'BUY'].every((side) => side !== response.side)
+  ) {
+    throw new Error(
+      `invalid api order response ${price} - ${executedQty} - ${response.side}`,
+    );
+  }
+  const base = response.side === 'SELL' ? -executedQty : executedQty;
+  const quote =
+    response.side === 'SELL' ? executedQty * price : -executedQty * price;
+  return {
+    base,
+    quote,
+  };
+};

@@ -9,6 +9,17 @@ export enum TradeStatus {
   'PENDING_CANCEL',
   'REJECTED',
 }
+
+export interface TradeBaseQuoteAmount {
+  base: number;
+  quote: number;
+}
+
+export interface TradeFromToAmount {
+  from: number;
+  to: number;
+}
+
 export class Trade {
   private createdAt: number;
   private lastUpdateAt: number;
@@ -17,8 +28,14 @@ export class Trade {
   private _quote: Coin;
   private _base: AltCoin;
   private _type: 'SELL' | 'BUY';
+  private executedAmount: TradeBaseQuoteAmount = { base: 0, quote: 0 };
 
-  constructor(private _from: Coin, private _to: Coin, private _amount: number) {
+  constructor(
+    private _from: Coin,
+    private _to: Coin,
+    private _amount: number,
+    private onFilled: (amount?: TradeFromToAmount) => void,
+  ) {
     this.createdAt = Date.now();
     this.lastUpdateAt = Date.now();
     if (_from.isBridge) {
@@ -37,10 +54,16 @@ export class Trade {
     }
   }
 
-  updateAfterInit(id: number, status: TradeStatus) {
+  updateAfterInit(
+    id: number,
+    status: TradeStatus,
+    amount: TradeBaseQuoteAmount,
+  ) {
+    this.executedAmount = amount;
     this.lastUpdateAt = Date.now();
     this.id = id;
     this.status = status;
+    this.handleStatus();
   }
 
   get isFromBridge() {
@@ -65,5 +88,25 @@ export class Trade {
 
   get amount() {
     return this._amount;
+  }
+
+  private handleStatus() {
+    switch (this.status) {
+      case TradeStatus.FILLED:
+        return this.onFilled(this.tradeAmountBQtoFT());
+      case TradeStatus.PARTIALLY_FILLED:
+        return this.onFilled();
+      default:
+        // ask for a new order query
+        return;
+    }
+  }
+
+  private tradeAmountBQtoFT(): TradeFromToAmount {
+    const amount = this.executedAmount;
+    return {
+      from: this._base === this.from ? amount.base : amount.quote,
+      to: this._quote === this.to ? amount.quote : amount.base,
+    };
   }
 }
