@@ -143,8 +143,26 @@ export class TraderService implements OnModuleInit {
                 base: 0,
                 quote: 0,
               };
-        trade.updateAfterInit(orderId, statusToEnum(status), tradeAmount);
+        trade.updateAfterInit(orderId, status, tradeAmount);
       });
+  }
+
+  private askOrderStatus(marketName: string, orderId: number) {
+    return this.binanceApi.orderStatus(marketName, orderId).then((res) => {
+      if ((res as BinanceAPIResponseError).code != null) {
+        throw new Error((res as BinanceAPIResponseError).msg);
+      }
+      const { status: rawStatus } = res as BinanceAPIOrderResponse;
+      const status = statusToEnum(rawStatus);
+      const tradeAmount: TradeBaseQuoteAmount =
+        status === TradeStatus.FILLED
+          ? orderResponseToTradeAmount(res as BinanceAPIOrderResponse)
+          : {
+              base: 0,
+              quote: 0,
+            };
+      return [status, tradeAmount];
+    });
   }
 }
 

@@ -668,4 +668,27 @@ export class BinanceApiService {
       this.order('SELL', symbol, quantity, 0, flags, callback);
     });
   }
+
+  orderStatus(symbol: string, orderId: number) {
+    const opt = { symbol, orderId };
+    return new Promise<
+      BinanceAPIOrderResponse | BinanceAPIResponseError | undefined
+    >((resolve, reject) => {
+      const callback = (
+        error: any,
+        response?: BinanceAPIOrderResponse | BinanceAPIResponseError,
+      ) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(response);
+        }
+      };
+      this.signedRequest(
+        BinanceApiService.base + 'v3/order',
+        opt,
+        (error: any, data?: BinanceAPIOrderResponse) => callback(error, data),
+      );
+    });
+  }
 }
