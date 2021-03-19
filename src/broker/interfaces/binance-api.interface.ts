@@ -101,3 +101,51 @@ export interface BinanceAPIOrderResponse {
   type: string;
   side: string;
 }
+
+export interface BinanceOrderFlags {
+  price?: number;
+  quantity?: number;
+  type?: 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'LIMIT_MAKER' | 'OCO';
+  stopLimitPrice?: number;
+  listClientOrderId?: number;
+  limitClientOrderId?: number;
+  stopClientOrderId?: number;
+  stopLimitTimeInForce?: string;
+  timeInForce?: string;
+  newOrderRespType?: number;
+  newClientOrderId?: number;
+  icebergQty?: number;
+  stopPrice?: number;
+  side?: string;
+  symbol?: string;
+}
+
+export type BinanceCandlesticksIntervals =
+  | '1m'
+  | '3m'
+  | '5m'
+  | '15m'
+  | '30m'
+  | '1h'
+  | '2h'
+  | '4h'
+  | '6h'
+  | '8h'
+  | '12h'
+  | '1d'
+  | '3d'
+  | '1w'
+  | '1M';
+
+export interface BinanceAPIAccount {
+  makerCommission: boolean;
+  takerCommission: boolean;
+  buyerCommission: boolean;
+  sellerCommission: boolean;
+  canTrade: boolean;
+  canWithdraw: boolean;
+  canDeposit: boolean;
+  updateTime: number;
+  accountType: 'SPOT';
+  balances: Array<{ asset: string; free: string; locked: string }>;
+}

@@ -1,19 +1,20 @@
 /* eslint-disable @typescript-eslint/no-this-alias */
-import { Inject, Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import AbortController from 'abort-controller';
 import { createHmac } from 'crypto';
 import fetch from 'node-fetch';
 import { w3cwebsocket } from 'websocket';
 import {
+  BinanceAPIAccount,
   BinanceAPIOrderResponse,
   BinanceAPIResponseError,
   BinanceBookTicker,
   BinanceCandlestick,
+  BinanceCandlesticksIntervals,
   BinanceExchangeInfo,
   BinanceOptions,
+  BinanceOrderFlags,
   BinanceSymbolPrice,
-} from '../interfaces/binance-api.interface';
+} from './interfaces/binance-api.interface';
 
 type WebSocket = w3cwebsocket;
 
@@ -33,19 +34,6 @@ interface BinanceAPIBookTicker {
   A: string; // best ask qty
 }
 
-interface BinanceAPIAccount {
-  makerCommission: boolean;
-  takerCommission: boolean;
-  buyerCommission: boolean;
-  sellerCommission: boolean;
-  canTrade: boolean;
-  canWithdraw: boolean;
-  canDeposit: boolean;
-  updateTime: number;
-  accountType: 'SPOT';
-  balances: Array<{ asset: string; free: string; locked: string }>;
-}
-
 interface BinanceAPIRequest {
   timestamp?: number;
   recvWindow?: number;
@@ -53,44 +41,8 @@ interface BinanceAPIRequest {
   [key: string]: any;
 }
 
-interface BinanceOrderFlags {
-  price?: number;
-  quantity?: number;
-  type?: 'LIMIT' | 'MARKET' | 'STOP_LOSS' | 'LIMIT_MAKER' | 'OCO';
-  stopLimitPrice?: number;
-  listClientOrderId?: number;
-  limitClientOrderId?: number;
-  stopClientOrderId?: number;
-  stopLimitTimeInForce?: string;
-  timeInForce?: string;
-  newOrderRespType?: number;
-  newClientOrderId?: number;
-  icebergQty?: number;
-  stopPrice?: number;
-  side?: string;
-  symbol?: string;
-}
-
 type BinanceAPIRequestInit = RequestInit & { timeout: number };
 
-type BinanceCandlesticksIntervals =
-  | '1m'
-  | '3m'
-  | '5m'
-  | '15m'
-  | '30m'
-  | '1h'
-  | '2h'
-  | '4h'
-  | '6h'
-  | '8h'
-  | '12h'
-  | '1d'
-  | '3d'
-  | '1w'
-  | '1M';
-
-export const BINANCE_OPTIONS = 'BINANCE_OPTIONS';
 export const defaultOptions: BinanceOptions = {
   keepAlive: true,
   recvWindow: 5000,
@@ -100,8 +52,12 @@ export const defaultOptions: BinanceOptions = {
   log: (...args) => console.log(...args),
 };
 
-@Injectable()
-export class BinanceApiService {
+export interface BinanceApiClientProps extends BinanceOptions {
+  APIKEY: string;
+  APISECRET: string;
+}
+
+export class BinanceApiClient {
   static base = 'https://api.binance.com/api/';
   static stream = 'wss://stream.binance.com:9443/ws/';
   static combineStream = 'wss://stream.binance.com:9443/stream?streams=';
@@ -123,13 +79,8 @@ export class BinanceApiService {
   };
   private subscriptions: Subscriptions = {};
 
-  constructor(
-    @Inject(BINANCE_OPTIONS) private userOptions: BinanceOptions,
-    config: ConfigService,
-  ) {
-    const APIKEY = config.get<string>('APIKEY');
-    const APISECRET = config.get<string>('APISECRET');
-    this.options = { ...userOptions, APIKEY, APISECRET };
+  constructor(props: BinanceApiClientProps) {
+    this.options = { ...props };
   }
 
   private queryStringify(q: any) {
@@ -209,7 +160,7 @@ export class BinanceApiService {
     reconnect?: () => void,
     openedCb?: (endpoint: string) => void,
   ) {
-    const ws = new w3cwebsocket(BinanceApiService.stream + endpoint);
+    const ws = new w3cwebsocket(BinanceApiClient.stream + endpoint);
     const binance = this;
 
     if (this.options.verbose) {
@@ -235,11 +186,11 @@ export class BinanceApiService {
     openedCb?: (endpoint: string) => void,
   ) {
     const queryParams = streams.join('/');
-    const ws = new w3cwebsocket(BinanceApiService.combineStream + queryParams);
+    const ws = new w3cwebsocket(BinanceApiClient.combineStream + queryParams);
     if (this.options.verbose) {
       this.options.log(
         'CombinedStream: Subscribed to [' +
-          BinanceApiService.combineStream +
+          BinanceApiClient.combineStream +
           '] ' +
           queryParams,
       );
@@ -301,8 +252,8 @@ export class BinanceApiService {
       timeout: this.options.recvWindow,
       keepalive: this.options.keepAlive,
       headers: {
-        'User-Agent': BinanceApiService.userAgent,
-        'Content-type': BinanceApiService.contentType,
+        'User-Agent': BinanceApiClient.userAgent,
+        'Content-type': BinanceApiClient.contentType,
         'X-MBX-APIKEY': key || '',
       },
     };
@@ -314,8 +265,8 @@ export class BinanceApiService {
       timeout: this.options.recvWindow,
       keepalive: this.options.keepAlive,
       headers: {
-        'User-Agent': BinanceApiService.userAgent,
-        'Content-type': BinanceApiService.contentType,
+        'User-Agent': BinanceApiClient.userAgent,
+        'Content-type': BinanceApiClient.contentType,
         'X-MBX-APIKEY': key || '',
       },
     };
@@ -436,7 +387,7 @@ export class BinanceApiService {
       );
     }
     this.signedRequest<T>(
-      BinanceApiService.base + endpoint,
+      BinanceApiClient.base + endpoint,
       opt,
       (error: any, response?: T) => {
         if (error) {
@@ -535,7 +486,7 @@ export class BinanceApiService {
         }
       };
       this.signedRequest(
-        BinanceApiService.base + 'v3/account',
+        BinanceApiClient.base + 'v3/account',
         {},
         (error: any, data?: BinanceAPIAccount) => callback(error, data),
       );
@@ -543,7 +494,7 @@ export class BinanceApiService {
   }
 
   exchangeInfo() {
-    const url = BinanceApiService.base + 'v3/exchangeInfo';
+    const url = BinanceApiClient.base + 'v3/exchangeInfo';
     const opt: BinanceAPIRequestInit = {
       timeout: this.options.recvWindow,
       method: 'GET',
@@ -557,7 +508,7 @@ export class BinanceApiService {
   }
 
   averagePrice(symbol: string) {
-    const url = BinanceApiService.base + 'v3/avgPrice?symbol=' + symbol;
+    const url = BinanceApiClient.base + 'v3/avgPrice?symbol=' + symbol;
     const opt = {
       timeout: this.options.recvWindow,
     };
@@ -570,7 +521,7 @@ export class BinanceApiService {
   }
 
   price(symbol: string) {
-    const url = BinanceApiService.base + 'v3/ticker/price?symbol=' + symbol;
+    const url = BinanceApiClient.base + 'v3/ticker/price?symbol=' + symbol;
     const opt = {
       timeout: this.options.recvWindow,
     };
@@ -583,7 +534,7 @@ export class BinanceApiService {
   }
 
   prices() {
-    const url = BinanceApiService.base + 'v3/ticker/price';
+    const url = BinanceApiClient.base + 'v3/ticker/price';
     const opt = {
       timeout: this.options.recvWindow,
     };
@@ -685,7 +636,7 @@ export class BinanceApiService {
         }
       };
       this.signedRequest(
-        BinanceApiService.base + 'v3/order',
+        BinanceApiClient.base + 'v3/order',
         opt,
         (error: any, data?: BinanceAPIOrderResponse) => callback(error, data),
       );

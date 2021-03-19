@@ -2,17 +2,16 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { defaultOptions } from './binance/binance-api/binance-api.service';
-import { BinanceModule } from './binance/binance.module';
+import { BrokerModule } from './broker/broker.module';
 import { TradeModule } from './trade/trade.module';
 
 @Module({
   imports: [
-    BinanceModule.register(defaultOptions),
+    BrokerModule,
     ConfigModule.forRoot(),
     TradeModule.register({ bridge: 'USDT', brokerCount: 1 }),
   ],
-  exports: [BinanceModule],
+  exports: [BrokerModule],
   controllers: [AppController],
   providers: [AppService],
 })

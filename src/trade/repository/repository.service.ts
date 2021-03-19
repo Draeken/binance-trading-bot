@@ -1,15 +1,15 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
-import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
+import { BrokerService } from 'src/broker/broker.service';
 import {
   pricesListToDict,
   ratio,
   stepToPrecision,
-} from 'src/binance/binance.orm-mapper';
+} from 'src/broker/binance.orm-mapper';
 import {
   FilterSymbolLotSize,
   FilterSymbolPrice,
-} from 'src/binance/interfaces/binance-api.interface';
+} from 'src/broker/interfaces/binance-api.interface';
 import { AssetProps } from '../domain/asset.value-object';
 import { CoinDict } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge, Coin } from '../domain/coin.entity';
@@ -27,7 +27,7 @@ export class RepositoryService {
 
   constructor(
     @Inject('TRADE_OPTIONS') tradeOptions: TradeOptions,
-    private binanceApi: BinanceApiService,
+    private binanceApi: BrokerService,
   ) {}
 
   set bridgeCoin(bridge: Bridge) {

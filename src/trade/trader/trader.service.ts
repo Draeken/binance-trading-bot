@@ -1,11 +1,11 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { Subject, Subscription, zip } from 'rxjs';
-import { BinanceApiService } from 'src/binance/binance-api/binance-api.service';
-import { prettifyKlines, statusToEnum } from 'src/binance/binance.orm-mapper';
+import { BrokerService } from 'src/broker/broker.service';
+import { prettifyKlines, statusToEnum } from 'src/broker/binance.orm-mapper';
 import {
   BinanceAPIOrderResponse,
   BinanceAPIResponseError,
-} from 'src/binance/interfaces/binance-api.interface';
+} from 'src/broker/interfaces/binance-api.interface';
 import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
 import { Operation } from '../domain/operation.entity';
@@ -31,7 +31,7 @@ export class TraderService implements OnModuleInit {
 
   constructor(
     @Inject('TRADE_OPTIONS') tradeOptions: TradeOptions,
-    private binanceApi: BinanceApiService,
+    private binanceApi: BrokerService,
     private repo: RepositoryService,
   ) {
     this.bridge = new Bridge(tradeOptions.bridge);
