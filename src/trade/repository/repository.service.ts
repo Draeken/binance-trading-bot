@@ -1,15 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
+import { pricesListToDict, ratio } from 'src/broker/binance.orm-mapper';
 import { BrokerService } from 'src/broker/broker.service';
-import {
-  pricesListToDict,
-  ratio,
-  stepToPrecision,
-} from 'src/broker/binance.orm-mapper';
-import {
-  FilterSymbolLotSize,
-  FilterSymbolPrice,
-} from 'src/broker/interfaces/binance-api.interface';
 import { AssetProps } from '../domain/asset.value-object';
 import { CoinDict } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge, Coin } from '../domain/coin.entity';
@@ -52,10 +44,10 @@ export class RepositoryService {
         coins.toList().forEach((coin) => {
           const coinInfo = dict[coin.code];
           if (coinInfo) {
-            coin.updateFilters(
-              coinInfo.filters.price,
-              coinInfo.filters.quantity,
-            );
+            coin.updateFilters({
+              price: coinInfo.filters.price,
+              quantity: coinInfo.filters.quantity,
+            });
             coinInfo.pairs.forEach((pair) => {
               coin.addPair(coins.get(pair.coin), {
                 base: coins.get(pair.base),
@@ -69,29 +61,16 @@ export class RepositoryService {
         return missingInfo;
       })
       .then((missingInfoCoins) => {
-        this.binanceApi.exchangeInfo().then((infos) => {
+        const coinsMarket = missingInfoCoins.map(
+          (coin) => coin.code + this.bridge.code,
+        );
+        this.binanceApi.exchangeInfo(...coinsMarket).then(async (infos) => {
+          const allPairs = await this.binanceApi.allPairs();
           missingInfoCoins.forEach((coin, i) => {
             const coinMarket = coin.code + this.bridge.code;
-            const coinInfo = infos.symbols.find((i) => i.symbol === coinMarket);
-            const coinFilterPrice = coinInfo.filters.find(
-              (f) => f.filterType === 'PRICE_FILTER',
-            ) as FilterSymbolPrice;
-            const coinFilterQuantity = coinInfo.filters.find(
-              (f) => f.filterType === 'LOT_SIZE',
-            ) as FilterSymbolLotSize;
-            coin.updateFilters(
-              {
-                min: Number.parseFloat(coinFilterPrice.minPrice),
-                max: Number.parseFloat(coinFilterPrice.maxPrice),
-                precision: stepToPrecision(coinFilterPrice.tickSize),
-              },
-              {
-                min: Number.parseFloat(coinFilterQuantity.minQty),
-                max: Number.parseFloat(coinFilterQuantity.maxQty),
-                precision: stepToPrecision(coinFilterQuantity.stepSize),
-              },
-            );
-            this.addPairs(coin, i, missingInfoCoins, infos.symbols);
+            const coinFilters = infos[coinMarket];
+            coin.updateFilters(coinFilters);
+            this.addPairs(coin, i, missingInfoCoins, allPairs);
           });
         });
         return coins;
@@ -154,22 +133,20 @@ export class RepositoryService {
     coin: AltCoin,
     i: number,
     list: AltCoin[],
-    symbolList: { symbol: string }[],
+    symbolSet: Set<string>,
   ): AltCoin {
     for (let index = i; index < list.length; ++index) {
       let base: Coin;
       let quote: Coin;
-      for (let j = 0; j < symbolList.length; ++j) {
-        if (symbolList[j].symbol === coin.code + list[index].code) {
-          base = coin;
-          quote = list[index];
-          break;
-        } else if (symbolList[j].symbol === list[index].code + coin.code) {
-          quote = coin;
-          base = list[index];
-          break;
-        }
+
+      if (symbolSet.has(coin.code + list[index].code)) {
+        base = coin;
+        quote = list[index];
+      } else if (symbolSet.has(list[index].code + coin.code)) {
+        quote = coin;
+        base = list[index];
       }
+
       if (base != undefined) {
         coin.addPair(list[i], { base, quote });
         list[i].addPair(coin, { base, quote });

@@ -65,25 +65,27 @@ export interface FilterSymbolLotSize {
   stepSize: string;
 }
 
+export interface BinanceSymbolInfo {
+  symbol: string;
+  status: string;
+  baseAsset: string;
+  baseAssetPrecision: number;
+  quoteAsset: string;
+  quoteAssetPrecision: number;
+  baseCommissionPrecision: number;
+  quoteCommissionPrecision: number;
+  icebergAllowed: boolean;
+  ocoAllowed: boolean;
+  quoteOrderQtyMarketAllowed: boolean;
+  isSpotTradingAllowed: boolean;
+  isMarginTradingAllowed: boolean;
+  filters: Array<FilterSymbolPrice | FilterSymbolLotSize>;
+}
+
 export interface BinanceExchangeInfo {
   timezone: string;
   serverTime: number;
-  symbols: Array<{
-    symbol: string;
-    status: string;
-    baseAsset: string;
-    baseAssetPrecision: number;
-    quoteAsset: string;
-    quoteAssetPrecision: number;
-    baseCommissionPrecision: number;
-    quoteCommissionPrecision: number;
-    icebergAllowed: boolean;
-    ocoAllowed: boolean;
-    quoteOrderQtyMarketAllowed: boolean;
-    isSpotTradingAllowed: boolean;
-    isMarginTradingAllowed: boolean;
-    filters: Array<FilterSymbolPrice | FilterSymbolLotSize>;
-  }>;
+  symbols: BinanceSymbolInfo[];
 }
 
 export interface BinanceAPIOrderResponse {

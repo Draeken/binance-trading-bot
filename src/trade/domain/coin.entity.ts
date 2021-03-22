@@ -21,6 +21,11 @@ export interface CoinValueFilter {
   max: number;
   precision: number;
 }
+
+export interface AltCoinUpdateFiltersProps {
+  price: CoinValueFilter;
+  quantity: CoinValueFilter;
+}
 export class AltCoin implements Coin {
   readonly isBridge = false;
   readonly code: string;
@@ -54,9 +59,9 @@ export class AltCoin implements Coin {
     return { ...this.pairMarketName[coin.code] };
   }
 
-  updateFilters(price: CoinValueFilter, quantity: CoinValueFilter) {
-    this._priceFilters = price;
-    this._quantityFilters = quantity;
+  updateFilters(filters: AltCoinUpdateFiltersProps) {
+    this._priceFilters = filters.price;
+    this._quantityFilters = filters.quantity;
   }
 
   checkQuantity(quantity: number) {

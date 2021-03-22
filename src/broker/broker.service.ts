@@ -1,16 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { CoinValueFilter } from 'src/trade/domain/coin.entity';
 import { BinanceApiClient } from './binance-api-client';
+import { stepToPrecision } from './binance.orm-mapper';
 import { EXCHANGE_PLATFORM } from './broker.module';
 import {
   BinanceBookTicker,
   BinanceCandlestick,
   BinanceCandlesticksIntervals,
+  BinanceExchangeInfo,
   BinanceOrderFlags,
+  BinanceSymbolInfo,
+  FilterSymbolLotSize,
+  FilterSymbolPrice,
 } from './interfaces/binance-api.interface';
 
 @Injectable()
 export class BrokerService {
   private client: BinanceApiClient;
+  private pairs = new Set<string>();
 
   constructor(@Inject(EXCHANGE_PLATFORM) exchangePlatform: BinanceApiClient) {
     this.client = exchangePlatform;
@@ -40,10 +47,61 @@ export class BrokerService {
     return this.client.account();
   }
 
-  exchangeInfo() {
-    return this.client.exchangeInfo();
+  allPairs() {
+    if (this.pairs.size > 0) {
+      return Promise.resolve(this.pairs);
+    }
+    return this.client.exchangeInfo().then((info) => {
+      this.setAllPairs(info);
+      return this.pairs;
+    });
   }
 
+  exchangeInfo(...pairs: string[]) {
+    const symbolInfoToFilters = (info: BinanceSymbolInfo) => {
+      const coinFilterPrice = info.filters.find(
+        (f) => f.filterType === 'PRICE_FILTER',
+      ) as FilterSymbolPrice;
+      const coinFilterQuantity = info.filters.find(
+        (f) => f.filterType === 'LOT_SIZE',
+      ) as FilterSymbolLotSize;
+      return {
+        price: {
+          min: Number.parseFloat(coinFilterPrice.minPrice),
+          max: Number.parseFloat(coinFilterPrice.maxPrice),
+          precision: stepToPrecision(coinFilterPrice.tickSize),
+        },
+        quantity: {
+          min: Number.parseFloat(coinFilterQuantity.minQty),
+          max: Number.parseFloat(coinFilterQuantity.maxQty),
+          precision: stepToPrecision(coinFilterQuantity.stepSize),
+        },
+      };
+    };
+    return this.client
+      .exchangeInfo()
+      .then((infos) => {
+        this.setAllPairs(infos);
+        return infos;
+      })
+      .then((infos) =>
+        infos.symbols.reduce(
+          (acc, cur) => ({ ...acc, [cur.symbol]: cur }),
+          {} as { [key: string]: BinanceSymbolInfo },
+        ),
+      )
+      .then((dict) =>
+        pairs.reduce(
+          (acc, cur) => ({ ...acc, [cur]: symbolInfoToFilters(dict[cur]) }),
+          {} as {
+            [key: string]: {
+              price: CoinValueFilter;
+              quantity: CoinValueFilter;
+            };
+          },
+        ),
+      );
+  }
   averagePrice(symbol: string) {
     return this.client.averagePrice(symbol);
   }
@@ -84,5 +142,9 @@ export class BrokerService {
 
   orderStatus(symbol: string, orderId: number) {
     return this.client.orderStatus(symbol, orderId);
+  }
+
+  private setAllPairs(info: BinanceExchangeInfo) {
+    this.pairs = new Set(info.symbols.map((s) => s.symbol));
   }
 }
