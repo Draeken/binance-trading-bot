@@ -1,19 +1,12 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { Subject, Subscription, zip } from 'rxjs';
+import { interval, Subject, Subscription, zip } from 'rxjs';
+import { filter, map, withLatestFrom } from 'rxjs/operators';
+import { prettifyKlines } from 'src/broker/binance.orm-mapper';
 import { BrokerService } from 'src/broker/broker.service';
-import { prettifyKlines, statusToEnum } from 'src/broker/binance.orm-mapper';
-import {
-  BinanceAPIOrderResponse,
-  BinanceAPIResponseError,
-} from 'src/broker/interfaces/binance-api.interface';
 import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
 import { Operation } from '../domain/operation.entity';
-import {
-  Trade,
-  TradeBaseQuoteAmount,
-  TradeStatus,
-} from '../domain/trade.entity';
+import { Trade, TradeStatus } from '../domain/trade.entity';
 import { Trader } from '../domain/trader.entity';
 import { Candlestick } from '../interfaces/candlestick.interface';
 import { TradeOptions } from '../interfaces/trade-options.interface';
@@ -21,6 +14,9 @@ import { RepositoryService } from '../repository/repository.service';
 
 @Injectable()
 export class TraderService implements OnModuleInit {
+  private ongoingTradeSubject: Subject<Set<Trade>> = new Subject();
+  private ongoingTrade: Subscription;
+
   private rawCandleSubjects: {
     [key: string]: Subject<Candlestick>;
   };
@@ -31,11 +27,12 @@ export class TraderService implements OnModuleInit {
 
   constructor(
     @Inject('TRADE_OPTIONS') tradeOptions: TradeOptions,
-    private binanceApi: BrokerService,
+    private broker: BrokerService,
     private repo: RepositoryService,
   ) {
     this.bridge = new Bridge(tradeOptions.bridge);
     this.repo.bridgeCoin = this.bridge;
+    this.initOngoingTradeUpdater();
   }
 
   async onModuleInit() {
@@ -58,7 +55,7 @@ export class TraderService implements OnModuleInit {
       }),
       {},
     );
-    this.binanceApi.candlesticks(
+    this.broker.candlesticks(
       this.coinList().map(this.altCoinToMarket),
       '1m',
       (klines) => {
@@ -84,7 +81,7 @@ export class TraderService implements OnModuleInit {
   }
 
   stopTickers() {
-    this.binanceApi.closeWebSockets();
+    this.broker.closeWebSockets();
     this.candlestickSub.unsubscribe();
   }
 
@@ -114,77 +111,42 @@ export class TraderService implements OnModuleInit {
   private executeTrade(trade: Trade) {
     const { type, base, quote } = trade.operation;
     const marketName = base.code + quote.code;
-    this.binanceApi
+    this.broker
       .price(marketName)
-      .then((res) => {
-        const price = Number.parseFloat(res.price);
+      .then((price) => {
         if (type === 'SELL') {
-          return this.binanceApi.sell(marketName, trade.amount, price, {
+          return this.broker.sell(marketName, trade.amount, price, {
             type: 'LIMIT',
           });
         } else {
           const quantity = base.checkQuantity(Math.floor(trade.amount / price));
-          // update balance
-          return this.binanceApi.buy(marketName, quantity, price, {
+          return this.broker.buy(marketName, quantity, price, {
             type: 'LIMIT',
           });
         }
       })
       .then((res) => {
-        if ((res as BinanceAPIResponseError).code != null) {
-          throw new Error((res as BinanceAPIResponseError).msg);
+        trade.updateAfterInit(res);
+        if (res.status !== TradeStatus.FILLED) {
         }
-        const { orderId, status: rawStatus } = res as BinanceAPIOrderResponse;
-        const status = statusToEnum(rawStatus);
-        const tradeAmount: TradeBaseQuoteAmount =
-          status === TradeStatus.FILLED
-            ? orderResponseToTradeAmount(res as BinanceAPIOrderResponse)
-            : {
-                base: 0,
-                quote: 0,
-              };
-        trade.updateAfterInit(orderId, status, tradeAmount);
       });
   }
 
-  private askOrderStatus(marketName: string, orderId: number) {
-    return this.binanceApi.orderStatus(marketName, orderId).then((res) => {
-      if ((res as BinanceAPIResponseError).code != null) {
-        throw new Error((res as BinanceAPIResponseError).msg);
-      }
-      const { status: rawStatus } = res as BinanceAPIOrderResponse;
-      const status = statusToEnum(rawStatus);
-      const tradeAmount: TradeBaseQuoteAmount =
-        status === TradeStatus.FILLED
-          ? orderResponseToTradeAmount(res as BinanceAPIOrderResponse)
-          : {
-              base: 0,
-              quote: 0,
-            };
-      return [status, tradeAmount];
+  private updateTrades(trades: Set<Trade>) {
+    trades.forEach((trade) => {
+      this.broker.orderStatus(trade.marketName, trade.orderId).then((res) => {
+        trade.update(res);
+      });
     });
   }
-}
 
-const orderResponseToTradeAmount = (
-  response: BinanceAPIOrderResponse,
-): TradeBaseQuoteAmount => {
-  const price = Number.parseFloat(response.price);
-  const executedQty = Number.parseFloat(response.executedQty);
-  if (
-    price == NaN ||
-    executedQty == NaN ||
-    ['SELL', 'BUY'].every((side) => side !== response.side)
-  ) {
-    throw new Error(
-      `invalid api order response ${price} - ${executedQty} - ${response.side}`,
-    );
+  private initOngoingTradeUpdater() {
+    this.ongoingTrade = interval(1000)
+      .pipe(
+        withLatestFrom(this.ongoingTradeSubject),
+        map((v) => v[1]),
+        filter((v) => v.size > 0),
+      )
+      .subscribe(this.updateTrades);
   }
-  const base = response.side === 'SELL' ? -executedQty : executedQty;
-  const quote =
-    response.side === 'SELL' ? executedQty * price : -executedQty * price;
-  return {
-    base,
-    quote,
-  };
-};
+}

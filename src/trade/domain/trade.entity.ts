@@ -20,6 +20,12 @@ export interface TradeFromToAmount {
   to: number;
 }
 
+export interface TradeUpdateProps {
+  id: number;
+  status: TradeStatus;
+  amount: TradeBaseQuoteAmount;
+}
+
 export class Trade {
   private createdAt: number;
   private lastUpdateAt: number;
@@ -54,14 +60,17 @@ export class Trade {
     }
   }
 
-  updateAfterInit(
-    id: number,
-    status: TradeStatus,
-    amount: TradeBaseQuoteAmount,
-  ) {
+  updateAfterInit({ amount, id, status }: TradeUpdateProps) {
     this.executedAmount = amount;
     this.lastUpdateAt = Date.now();
     this.id = id;
+    this.status = status;
+    this.handleStatus();
+  }
+
+  update({ amount, status }: TradeUpdateProps) {
+    this.executedAmount = amount;
+    this.lastUpdateAt = Date.now();
     this.status = status;
     this.handleStatus();
   }
@@ -76,6 +85,14 @@ export class Trade {
       base: this._base,
       quote: this._quote,
     };
+  }
+
+  get marketName() {
+    return this._base.code + this._quote.code;
+  }
+
+  get orderId() {
+    return this.id;
   }
 
   get from() {
@@ -97,7 +114,6 @@ export class Trade {
       case TradeStatus.PARTIALLY_FILLED:
         return this.onFilled();
       default:
-        // ask for a new order query
         return;
     }
   }

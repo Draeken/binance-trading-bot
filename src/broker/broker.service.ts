@@ -1,9 +1,16 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { CoinValueFilter } from 'src/trade/domain/coin.entity';
+import {
+  TradeBaseQuoteAmount,
+  TradeStatus,
+  TradeUpdateProps,
+} from 'src/trade/domain/trade.entity';
 import { BinanceApiClient } from './binance-api-client';
-import { stepToPrecision } from './binance.orm-mapper';
+import { statusToEnum, stepToPrecision } from './binance.orm-mapper';
 import { EXCHANGE_PLATFORM } from './broker.module';
 import {
+  BinanceAPIOrderResponse,
+  BinanceAPIResponseError,
   BinanceBookTicker,
   BinanceCandlestick,
   BinanceCandlesticksIntervals,
@@ -107,7 +114,9 @@ export class BrokerService {
   }
 
   price(symbol: string) {
-    return this.client.price(symbol);
+    return this.client
+      .price(symbol)
+      .then((res) => Number.parseFloat(res.price));
   }
 
   prices() {
@@ -120,7 +129,10 @@ export class BrokerService {
     price: number,
     flags?: BinanceOrderFlags,
   ) {
-    return this.client.buy(symbol, quantity, price, flags);
+    return this.client
+      .buy(symbol, quantity, price, flags)
+      .then(throwIfResponseError)
+      .then(orderResponseToTradeInit);
   }
 
   sell(
@@ -129,7 +141,10 @@ export class BrokerService {
     price: number,
     flags?: BinanceOrderFlags,
   ) {
-    return this.client.sell(symbol, quantity, price, flags);
+    return this.client
+      .sell(symbol, quantity, price, flags)
+      .then(throwIfResponseError)
+      .then(orderResponseToTradeInit);
   }
 
   marketBuy(symbol: string, quantity: number, flags?: BinanceOrderFlags) {
@@ -141,10 +156,58 @@ export class BrokerService {
   }
 
   orderStatus(symbol: string, orderId: number) {
-    return this.client.orderStatus(symbol, orderId);
+    return this.client
+      .orderStatus(symbol, orderId)
+      .then(throwIfResponseError)
+      .then(orderResponseToTradeInit);
   }
 
   private setAllPairs(info: BinanceExchangeInfo) {
     this.pairs = new Set(info.symbols.map((s) => s.symbol));
   }
 }
+
+const throwIfResponseError = <T>(res: T | BinanceAPIResponseError): T => {
+  if ((res as BinanceAPIResponseError).code != null) {
+    throw new Error((res as BinanceAPIResponseError).msg);
+  }
+  return res as T;
+};
+
+const orderResponseToTradeInit = (
+  res: BinanceAPIOrderResponse,
+): TradeUpdateProps => {
+  const { orderId: id, status: rawStatus } = res;
+  const status = statusToEnum(rawStatus);
+  const amount: TradeBaseQuoteAmount =
+    status === TradeStatus.FILLED
+      ? orderResponseToTradeAmount(res)
+      : {
+          base: 0,
+          quote: 0,
+        };
+  return { id, status, amount };
+};
+
+const orderResponseToTradeAmount = (
+  response: BinanceAPIOrderResponse,
+): TradeBaseQuoteAmount => {
+  const price = Number.parseFloat(response.price);
+  const executedQty = Number.parseFloat(response.executedQty);
+  if (
+    price == NaN ||
+    executedQty == NaN ||
+    ['SELL', 'BUY'].every((side) => side !== response.side)
+  ) {
+    throw new Error(
+      `invalid api order response ${price} - ${executedQty} - ${response.side}`,
+    );
+  }
+  const base = response.side === 'SELL' ? -executedQty : executedQty;
+  const quote =
+    response.side === 'SELL' ? executedQty * price : -executedQty * price;
+  return {
+    base,
+    quote,
+  };
+};
