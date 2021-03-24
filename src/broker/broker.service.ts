@@ -5,14 +5,18 @@ import {
   TradeStatus,
   TradeUpdateProps,
 } from 'src/trade/domain/trade.entity';
+import { Candlestick } from 'src/trade/interfaces/candlestick.interface';
 import { BinanceApiClient } from './binance-api-client';
-import { statusToEnum, stepToPrecision } from './binance.orm-mapper';
+import {
+  prettifyKlines,
+  statusToEnum,
+  stepToPrecision,
+} from './binance.orm-mapper';
 import { EXCHANGE_PLATFORM } from './broker.module';
 import {
   BinanceAPIOrderResponse,
   BinanceAPIResponseError,
   BinanceBookTicker,
-  BinanceCandlestick,
   BinanceCandlesticksIntervals,
   BinanceExchangeInfo,
   BinanceOrderFlags,
@@ -37,9 +41,11 @@ export class BrokerService {
   candlesticks(
     symbols: string | string[],
     interval: BinanceCandlesticksIntervals,
-    cb: (data: BinanceCandlestick) => void,
+    cb: (data: Candlestick) => void,
   ) {
-    return this.client.candlesticks(symbols, interval, cb);
+    return this.client.candlesticks(symbols, interval, (data) =>
+      cb(prettifyKlines(data)),
+    );
   }
 
   closeWebSockets() {

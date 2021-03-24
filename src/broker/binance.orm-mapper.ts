@@ -18,10 +18,10 @@ export const ratio = (priceA: string, priceB: string) =>
 export const prettifyKlines = (e: BinanceCandlestick): Candlestick => ({
   timestamp: e.E,
   coin: e.s,
-  open: e.k.o,
-  close: e.k.c,
-  high: e.k.h,
-  low: e.k.l,
+  open: Number.parseFloat(e.k.o),
+  close: Number.parseFloat(e.k.c),
+  high: Number.parseFloat(e.k.h),
+  low: Number.parseFloat(e.k.l),
 });
 
 export const statusToEnum = (string): TradeStatus => {

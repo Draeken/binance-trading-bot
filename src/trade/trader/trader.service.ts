@@ -1,7 +1,6 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { interval, Subject, Subscription, zip } from 'rxjs';
 import { filter, map, withLatestFrom } from 'rxjs/operators';
-import { prettifyKlines } from 'src/broker/binance.orm-mapper';
 import { BrokerService } from 'src/broker/broker.service';
 import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
@@ -48,28 +47,24 @@ export class TraderService implements OnModuleInit {
   }
 
   startTickers() {
-    this.rawCandleSubjects = this.coinList().reduce(
+    const marketList = this.coinList().map((c) => this.altCoinToMarket(c));
+    this.rawCandleSubjects = marketList.reduce(
       (acc, c) => ({
         ...acc,
-        [this.altCoinToMarket(c)]: new Subject<Candlestick>(),
+        [c]: new Subject<Candlestick>(),
       }),
       {},
     );
-    this.broker.candlesticks(
-      this.coinList().map(this.altCoinToMarket),
-      '1m',
-      (klines) => {
-        const candle = prettifyKlines(klines);
-        this.rawCandleSubjects[candle.coin].next(candle);
-      },
-    );
+    this.broker.candlesticks(marketList, '1m', (candle) => {
+      this.rawCandleSubjects[candle.coin].next(candle);
+    });
     this.candlestickSub = zip(
       ...Object.values(this.rawCandleSubjects),
     ).subscribe((vals) =>
       this.updateCoins(
         vals.map((val) => {
-          const close = Number.parseFloat(val.close);
-          const open = Number.parseFloat(val.open);
+          const close = val.close;
+          const open = val.open;
           return {
             code: val.coin,
             valuation: close,
