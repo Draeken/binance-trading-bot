@@ -10,7 +10,7 @@ export interface TraderProps {
 }
 
 export class Trader {
-  private assets: Asset[] = [];
+  private _assets: Asset[] = [];
   private _bridgeAsset: Asset;
   private threshold: Threshold;
   private operations: Operation[];
@@ -24,10 +24,10 @@ export class Trader {
       if (asset.isBridge) {
         this._bridgeAsset = asset;
       } else {
-        this.assets.push(asset);
+        this._assets.push(asset);
       }
     }
-    this.assets = props.assets
+    this._assets = props.assets
       .map((a) => {
         try {
           return new Asset(a);
@@ -45,7 +45,7 @@ export class Trader {
   }
 
   evaluateMarket() {
-    const bestTrades = this.assets
+    const bestTrades = this._assets
       .filter((asset) =>
         this.operations.every((op) => asset.coin.code !== op.assetCode),
       )
@@ -75,10 +75,22 @@ export class Trader {
       this.operations.splice(i, 1);
       const targetCoin = op.targetCoin;
       const targetAsset =
-        this.assets.find((a) => a.coin === targetCoin) ??
+        this._assets.find((a) => a.coin === targetCoin) ??
         new Asset({ coin: targetCoin, balance: targetBalance });
       targetAsset.balance = targetBalance;
     };
+  }
+
+  get ratios() {
+    return this.threshold.ratios;
+  }
+
+  get assets() {
+    const mapAsset = (asset: Asset) => ({
+      coin: asset.coin,
+      balance: asset.balance,
+    });
+    return [...this._assets.map(mapAsset), mapAsset(this.bridgeAsset)];
   }
 
   get bridgeAsset() {

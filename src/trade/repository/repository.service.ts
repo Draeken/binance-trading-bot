@@ -6,7 +6,7 @@ import { AssetProps } from '../domain/asset.value-object';
 import { CoinDict } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge, Coin, CoinValueFilter } from '../domain/coin.entity';
 import { ratios } from '../domain/threshold.entity';
-import { TraderProps } from '../domain/trader.entity';
+import { Trader, TraderProps } from '../domain/trader.entity';
 import { TradeOptions } from '../interfaces/trade-options.interface';
 
 interface CoinInfoRaw {
@@ -18,6 +18,7 @@ interface CoinInfoRaw {
 
 @Injectable()
 export class RepositoryService {
+  private readonly assetBalancesPath = './asset_balances.json';
   private readonly ratioCoinsTablePath = './ratio_coins_table.json';
   private readonly coinInfosPath = './coin_infos.json';
   private readonly supportedCoinListPath = './supported_list_coins.json';
@@ -104,6 +105,26 @@ export class RepositoryService {
           assets: v[1],
         } as TraderProps),
     );
+  }
+
+  saveTrader(trader: Trader) {
+    const assets = trader.assets.map((asset) => ({
+      coin: asset.coin.code,
+      balance: asset.balance,
+    }));
+    const thresholdRes: ratios = {};
+    for (const [coin, vsCoins] of trader.ratios) {
+      const vsCoinsObj: { [key: string]: number } = {};
+      for (const [vsCoin, ratio] of vsCoins) {
+        vsCoinsObj[vsCoin.code] = ratio;
+      }
+      thresholdRes[coin.code] = vsCoinsObj;
+    }
+    // may save trader's ongoing operations
+    return Promise.all([
+      this.saveAssets(assets),
+      this.saveRatios(thresholdRes),
+    ]);
   }
 
   private saveCoinInfos(coins: CoinDict) {
@@ -193,12 +214,20 @@ export class RepositoryService {
           };
         }, {});
       })
-      .then((ratioTable) =>
-        fs
-          .writeFile(this.ratioCoinsTablePath, JSON.stringify(ratioTable))
-          .then(() => ratioTable),
-      );
+      .then(this.saveRatios);
   }
+
+  private saveAssets = (assets) => {
+    return fs
+      .writeFile(this.assetBalancesPath, JSON.stringify(assets))
+      .then(() => assets);
+  };
+
+  private saveRatios = (ratios: ratios) => {
+    return fs
+      .writeFile(this.ratioCoinsTablePath, JSON.stringify(ratios))
+      .then(() => ratios);
+  };
 }
 
 const addPairs = (

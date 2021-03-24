@@ -86,6 +86,10 @@ export class TraderService implements OnModuleInit {
     this.candlestickSub.unsubscribe();
   }
 
+  saveState() {
+    this.repo.saveTrader(this.trader);
+  }
+
   private coinList() {
     return this.supportedCoins.toList();
   }
