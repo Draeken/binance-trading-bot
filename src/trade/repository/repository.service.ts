@@ -4,10 +4,17 @@ import { pricesListToDict, ratio } from 'src/broker/binance.orm-mapper';
 import { BrokerService } from 'src/broker/broker.service';
 import { AssetProps } from '../domain/asset.value-object';
 import { CoinDict } from '../domain/coin-dict.entity';
-import { AltCoin, Bridge, Coin } from '../domain/coin.entity';
+import { AltCoin, Bridge, Coin, CoinValueFilter } from '../domain/coin.entity';
 import { ratios } from '../domain/threshold.entity';
 import { TraderProps } from '../domain/trader.entity';
 import { TradeOptions } from '../interfaces/trade-options.interface';
+
+interface CoinInfoRaw {
+  [key: string]: {
+    filters: { price: CoinValueFilter; quantity: CoinValueFilter };
+    pairs: Array<{ coin: string; quote: string; base: string }>;
+  };
+}
 
 @Injectable()
 export class RepositoryService {
@@ -32,6 +39,10 @@ export class RepositoryService {
         encoding: 'utf-8',
       })
       .then((buffer) => JSON.parse(buffer))
+      .catch((reason) => {
+        console.error(reason);
+        return [];
+      })
       .then((list: string[]) => list.map((code) => new AltCoin({ code })));
   }
 
@@ -39,7 +50,7 @@ export class RepositoryService {
     return fs
       .readFile(this.coinInfosPath, { encoding: 'utf-8' })
       .then((buffer) => JSON.parse(buffer))
-      .then((dict: any) => {
+      .then((dict: CoinInfoRaw) => {
         const missingInfo: AltCoin[] = [];
         coins.toList().forEach((coin) => {
           const coinInfo = dict[coin.code];
@@ -60,6 +71,10 @@ export class RepositoryService {
         });
         return missingInfo;
       })
+      .catch((reason) => {
+        console.error(reason);
+        return coins.toList();
+      })
       .then((missingInfoCoins) => {
         const coinsMarket = missingInfoCoins.map(
           (coin) => coin.code + this.bridge.code,
@@ -70,9 +85,10 @@ export class RepositoryService {
             const coinMarket = coin.code + this.bridge.code;
             const coinFilters = infos[coinMarket];
             coin.updateFilters(coinFilters);
-            this.addPairs(coin, i, missingInfoCoins, allPairs);
+            addPairs(coin, i, missingInfoCoins, allPairs);
           });
         });
+        this.saveCoinInfos(coins);
         return coins;
       });
   }
@@ -88,6 +104,22 @@ export class RepositoryService {
           assets: v[1],
         } as TraderProps),
     );
+  }
+
+  private saveCoinInfos(coins: CoinDict) {
+    const dict = coins.toDict();
+    const dictToSave: CoinInfoRaw = {};
+    for (const code in dict) {
+      dictToSave[code] = {
+        filters: dict[code].filters,
+        pairs: dict[code].allPairs().map(({ base, quote, code }) => ({
+          coin: code,
+          base: base.code,
+          quote: quote.code,
+        })),
+      };
+    }
+    fs.writeFile(this.coinInfosPath, JSON.stringify(dictToSave));
   }
 
   private loadCoinsRatio(supportedCoinList: AltCoin[]): Promise<ratios> {
@@ -129,32 +161,6 @@ export class RepositoryService {
     });
   }
 
-  private addPairs(
-    coin: AltCoin,
-    i: number,
-    list: AltCoin[],
-    symbolSet: Set<string>,
-  ): AltCoin {
-    for (let index = i; index < list.length; ++index) {
-      let base: Coin;
-      let quote: Coin;
-
-      if (symbolSet.has(coin.code + list[index].code)) {
-        base = coin;
-        quote = list[index];
-      } else if (symbolSet.has(list[index].code + coin.code)) {
-        quote = coin;
-        base = list[index];
-      }
-
-      if (base != undefined) {
-        coin.addPair(list[i], { base, quote });
-        list[i].addPair(coin, { base, quote });
-      }
-    }
-    return coin;
-  }
-
   private get prices() {
     if (this._prices) {
       return Promise.resolve(this._prices);
@@ -194,3 +200,29 @@ export class RepositoryService {
       );
   }
 }
+
+const addPairs = (
+  coin: AltCoin,
+  i: number,
+  list: AltCoin[],
+  symbolSet: Set<string>,
+): AltCoin => {
+  for (let index = i; index < list.length; ++index) {
+    let base: Coin;
+    let quote: Coin;
+
+    if (symbolSet.has(coin.code + list[index].code)) {
+      base = coin;
+      quote = list[index];
+    } else if (symbolSet.has(list[index].code + coin.code)) {
+      quote = coin;
+      base = list[index];
+    }
+
+    if (base != undefined) {
+      coin.addPair(list[i], { base, quote });
+      list[i].addPair(coin, { base, quote });
+    }
+  }
+  return coin;
+};

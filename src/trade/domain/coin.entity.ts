@@ -47,12 +47,26 @@ export class AltCoin implements Coin {
     return this._valuation;
   }
 
+  get filters() {
+    return {
+      price: this._priceFilters,
+      quantity: this._quantityFilters,
+    };
+  }
+
   addPair(coin: Coin, market: { base: Coin; quote: Coin }) {
     this.pairMarketName[coin.code] = market;
   }
 
   hasPair(coin: Coin) {
     return this.pairMarketName[coin.code] != undefined;
+  }
+
+  allPairs() {
+    return Object.entries(this.pairMarketName).map(([code, info]) => ({
+      code,
+      ...info,
+    }));
   }
 
   pairInfo(coin: Coin) {

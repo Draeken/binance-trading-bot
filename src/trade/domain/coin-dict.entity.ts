@@ -17,6 +17,10 @@ export class CoinDict {
     return Object.values(this.dict);
   }
 
+  toDict() {
+    return { ...this.dict };
+  }
+
   updateCoins(updates: CoinsUpdate[]) {
     for (const update of updates) {
       this.dict[update.code].updateMarket(update);

@@ -1,6 +1,6 @@
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { interval, Subject, Subscription, zip } from 'rxjs';
-import { filter, map, withLatestFrom } from 'rxjs/operators';
+import { filter, map, scan, withLatestFrom } from 'rxjs/operators';
 import { BrokerService } from 'src/broker/broker.service';
 import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
@@ -11,9 +11,15 @@ import { Candlestick } from '../interfaces/candlestick.interface';
 import { TradeOptions } from '../interfaces/trade-options.interface';
 import { RepositoryService } from '../repository/repository.service';
 
+interface TradeSubjectAction {
+  action: 'ADD' | 'REMOVE';
+  trade: Trade;
+}
+
 @Injectable()
 export class TraderService implements OnModuleInit {
-  private ongoingTradeSubject: Subject<Set<Trade>> = new Subject();
+  static readonly ongoingTradePoolingIntervalMS = 1000;
+  private ongoingTradeSubject: Subject<TradeSubjectAction> = new Subject();
   private ongoingTrade: Subscription;
 
   private rawCandleSubjects: {
@@ -123,6 +129,7 @@ export class TraderService implements OnModuleInit {
       .then((res) => {
         trade.updateAfterInit(res);
         if (res.status !== TradeStatus.FILLED) {
+          this.ongoingTradeSubject.next({ action: 'ADD', trade });
         }
       });
   }
@@ -130,17 +137,31 @@ export class TraderService implements OnModuleInit {
   private updateTrades(trades: Set<Trade>) {
     trades.forEach((trade) => {
       this.broker.orderStatus(trade.marketName, trade.orderId).then((res) => {
+        if (res.status === TradeStatus.FILLED) {
+          this.ongoingTradeSubject.next({ action: 'REMOVE', trade });
+        }
         trade.update(res);
       });
     });
   }
 
   private initOngoingTradeUpdater() {
-    this.ongoingTrade = interval(1000)
+    const tradeSet$ = this.ongoingTradeSubject.pipe(
+      scan((tradeSet, { action, trade }) => {
+        if (action === 'ADD') {
+          return new Set(tradeSet).add(trade);
+        } else if (action === 'REMOVE') {
+          const res = new Set(tradeSet);
+          res.delete(trade);
+          return res;
+        }
+      }, new Set<Trade>()),
+    );
+    this.ongoingTrade = interval(TraderService.ongoingTradePoolingIntervalMS)
       .pipe(
-        withLatestFrom(this.ongoingTradeSubject),
-        map((v) => v[1]),
-        filter((v) => v.size > 0),
+        withLatestFrom(tradeSet$),
+        map(([_, trades]) => trades),
+        filter((trades) => trades.size > 0),
       )
       .subscribe(this.updateTrades);
   }
