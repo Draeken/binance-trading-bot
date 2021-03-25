@@ -47,7 +47,7 @@ export class Trader {
   evaluateMarket() {
     const bestTrades = this._assets
       .filter((asset) =>
-        this.operations.every((op) => asset.coin.code !== op.assetCode),
+        this.operations.every((op) => asset.coin.code !== op.fromCoin.code),
       )
       .map((asset) => ({
         asset,
@@ -70,14 +70,23 @@ export class Trader {
 
   addOperation(operation: Operation) {
     this.operations.push(operation);
-    operation.onFinishCB = (op: Operation, targetBalance: number) => {
-      const i = this.operations.findIndex((o) => o === op);
+    operation.onFinishCB = (targetBalance: number) => {
+      const i = this.operations.findIndex((o) => o === operation);
       this.operations.splice(i, 1);
-      const targetCoin = op.targetCoin;
+      const targetCoin = operation.toCoin;
       const targetAsset =
         this._assets.find((a) => a.coin === targetCoin) ??
         new Asset({ coin: targetCoin, balance: targetBalance });
       targetAsset.balance = targetBalance;
+      if (operation.isDirectPair) {
+        this.threshold.updateRatios(operation.fromCoin, operation.toCoin);
+      } else {
+        this.threshold.updateRatios(
+          operation.fromCoin,
+          operation.toCoin,
+          operation.prices,
+        );
+      }
     };
   }
 

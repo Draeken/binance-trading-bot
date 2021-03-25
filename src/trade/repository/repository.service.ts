@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { promises as fs } from 'fs';
-import { pricesListToDict, ratio } from 'src/broker/binance.orm-mapper';
+import { ratio } from 'src/broker/binance.orm-mapper';
 import { BrokerService } from 'src/broker/broker.service';
 import { AssetProps } from '../domain/asset.value-object';
 import { CoinDict } from '../domain/coin-dict.entity';
@@ -209,13 +209,10 @@ export class RepositoryService {
     if (this._prices) {
       return Promise.resolve(this._prices);
     }
-    return this.binanceApi
-      .prices()
-      .then(pricesListToDict)
-      .then((prices) => {
-        this._prices = prices;
-        return prices;
-      });
+    return this.binanceApi.prices().then((prices) => {
+      this._prices = prices;
+      return prices;
+    });
   }
 
   private initializeRatioCoinsTable(supportedCoinList: string[]) {

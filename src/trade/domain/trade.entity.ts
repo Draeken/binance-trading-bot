@@ -18,12 +18,14 @@ export interface TradeBaseQuoteAmount {
 export interface TradeFromToAmount {
   from: number;
   to: number;
+  price: number;
 }
 
 export interface TradeUpdateProps {
   id: number;
   status: TradeStatus;
   amount: TradeBaseQuoteAmount;
+  price: number;
 }
 
 export class Trade {
@@ -35,6 +37,8 @@ export class Trade {
   private _base: AltCoin;
   private _type: 'SELL' | 'BUY';
   private executedAmount: TradeBaseQuoteAmount = { base: 0, quote: 0 };
+  private _executedPrice: number;
+  private _isDirectPair = false;
 
   constructor(
     private _from: Coin,
@@ -54,22 +58,29 @@ export class Trade {
       this._type = 'SELL';
     } else {
       const { base, quote } = (_from as AltCoin).pairInfo(_to);
+      this._isDirectPair = true;
       this._quote = quote;
       this._base = base as AltCoin;
-      this._type = _from === base ? 'SELL' : 'BUY';
+      if (_from === base) {
+        this._type = 'SELL';
+      } else {
+        this._type = 'BUY';
+      }
     }
   }
 
-  updateAfterInit({ amount, id, status }: TradeUpdateProps) {
+  updateAfterInit({ amount, id, status, price }: TradeUpdateProps) {
     this.executedAmount = amount;
+    this._executedPrice = price;
     this.lastUpdateAt = Date.now();
     this.id = id;
     this.status = status;
     this.handleStatus();
   }
 
-  update({ amount, status }: TradeUpdateProps) {
+  update({ amount, status, price }: TradeUpdateProps) {
     this.executedAmount = amount;
+    this._executedPrice = price;
     this.lastUpdateAt = Date.now();
     this.status = status;
     this.handleStatus();
@@ -89,6 +100,10 @@ export class Trade {
 
   get marketName() {
     return this._base.code + this._quote.code;
+  }
+
+  get executedPrice() {
+    return this._executedPrice;
   }
 
   get orderId() {
@@ -123,6 +138,7 @@ export class Trade {
     return {
       from: this._base === this.from ? amount.base : amount.quote,
       to: this._quote === this.to ? amount.quote : amount.base,
+      price: this._executedPrice,
     };
   }
 }

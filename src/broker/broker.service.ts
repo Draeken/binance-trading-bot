@@ -9,6 +9,7 @@ import { Candlestick } from 'src/trade/interfaces/candlestick.interface';
 import { BinanceApiClient } from './binance-api-client';
 import {
   prettifyKlines,
+  pricesListToDict,
   statusToEnum,
   stepToPrecision,
 } from './binance.orm-mapper';
@@ -126,7 +127,7 @@ export class BrokerService {
   }
 
   prices() {
-    return this.client.prices();
+    return this.client.prices().then(pricesListToDict);
   }
 
   buy(
@@ -183,7 +184,7 @@ const throwIfResponseError = <T>(res: T | BinanceAPIResponseError): T => {
 const orderResponseToTradeInit = (
   res: BinanceAPIOrderResponse,
 ): TradeUpdateProps => {
-  const { orderId: id, status: rawStatus } = res;
+  const { orderId: id, status: rawStatus, price: rawPrice } = res;
   const status = statusToEnum(rawStatus);
   const amount: TradeBaseQuoteAmount =
     status === TradeStatus.FILLED
@@ -192,7 +193,7 @@ const orderResponseToTradeInit = (
           base: 0,
           quote: 0,
         };
-  return { id, status, amount };
+  return { id, status, amount, price: Number.parseFloat(rawPrice) };
 };
 
 const orderResponseToTradeAmount = (

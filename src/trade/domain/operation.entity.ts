@@ -15,10 +15,13 @@ export class Operation {
   private target: AltCoin;
   private bridgeAsset: Asset;
   private onTrade: (trade: Trade) => void;
-  private onFinish: (op: Operation, targetBalance: number) => void;
+  private onFinish: (targetBalance: number) => void;
   private firstTrade: Trade;
   private secondTrade: Trade;
   private amount: number;
+  private fromPrice: number;
+  private toPrice: number;
+  private _isDirectPair = false;
 
   constructor(props: OperationProps) {
     this.asset = props.asset;
@@ -30,6 +33,7 @@ export class Operation {
 
   start() {
     if (this.asset.pairWith(this.target)) {
+      this._isDirectPair = true;
       this.firstTrade = new Trade(
         this.asset.coin,
         this.target,
@@ -47,15 +51,23 @@ export class Operation {
     this.onTrade(this.firstTrade);
   }
 
-  set onFinishCB(cb: (op: Operation, targetBalance: number) => void) {
+  set onFinishCB(cb: (targetBalance: number) => void) {
     this.onFinish = cb;
   }
 
-  get assetCode() {
-    return this.asset.coin.code;
+  get fromCoin() {
+    return this.asset.coin as AltCoin;
   }
 
-  get targetCoin() {
+  get prices() {
+    return { from: this.fromPrice, to: this.toPrice };
+  }
+
+  get isDirectPair() {
+    return this._isDirectPair;
+  }
+
+  get toCoin() {
     return this.target;
   }
 
@@ -74,6 +86,7 @@ export class Operation {
     if (tradeAmount) {
       this.asset.balance += tradeAmount.from;
       this.bridgeAsset.balance += tradeAmount.to;
+      this.fromPrice = tradeAmount.price;
       this.secondTrade = new Trade(
         this.bridgeAsset.coin,
         this.target,
@@ -87,8 +100,9 @@ export class Operation {
   private handleLastTrade(fromAsset: Asset) {
     return (tradeAmount?: TradeFromToAmount) => {
       if (tradeAmount) {
+        this.toPrice = tradeAmount.price;
         fromAsset.balance += tradeAmount.from;
-        this.onFinish(this, tradeAmount.to);
+        this.onFinish(tradeAmount.to);
       }
     };
   }

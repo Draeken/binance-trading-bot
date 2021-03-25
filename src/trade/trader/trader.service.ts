@@ -120,11 +120,12 @@ export class TraderService implements OnModuleInit {
       .price(marketName)
       .then((price) => {
         if (type === 'SELL') {
-          return this.broker.sell(marketName, trade.amount, price, {
+          const quantity = base.checkQuantity(trade.amount);
+          return this.broker.sell(marketName, quantity, price, {
             type: 'LIMIT',
           });
         } else {
-          const quantity = base.checkQuantity(Math.floor(trade.amount / price));
+          const quantity = base.checkQuantity(trade.amount / price);
           return this.broker.buy(marketName, quantity, price, {
             type: 'LIMIT',
           });

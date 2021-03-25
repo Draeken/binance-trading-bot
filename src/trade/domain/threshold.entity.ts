@@ -5,6 +5,11 @@ export type ratioDict = Map<AltCoin, Map<AltCoin, number>>;
 
 export type ratios = { [key: string]: { [key: string]: number } };
 
+export interface RatiosUpdate {
+  fromTo: number;
+  toFrom: number;
+}
+
 export interface ThresholdProps {
   ratios: ratios;
   coins: CoinDict;
@@ -32,6 +37,22 @@ export class Threshold {
       bestTrade = tradeValue > bestTrade[1] ? [vsCoin, tradeValue] : bestTrade;
     });
     return bestTrade;
+  }
+
+  updateRatios(
+    from: AltCoin,
+    to: AltCoin,
+    executedPrices?: { from: number; to: number },
+  ) {
+    const fromPrice = executedPrices ? executedPrices.from : from.valuation;
+    const toPrice = executedPrices ? executedPrices.to : to.valuation;
+    for (const [coin, vsRatioMap] of this._ratios.entries()) {
+      if (coin === to) {
+        vsRatioMap.set(from, toPrice / fromPrice);
+        continue;
+      }
+      vsRatioMap.set(to, coin.valuation / toPrice);
+    }
   }
 
   private initRatioDict(coins: CoinDict, ratios: ratios) {
