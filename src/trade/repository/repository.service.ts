@@ -16,6 +16,11 @@ interface CoinInfoRaw {
   };
 }
 
+interface AssetRaw {
+  coin: string;
+  balance: number;
+}
+
 @Injectable()
 export class RepositoryService {
   private readonly assetBalancesPath = './asset_balances.json';
@@ -108,7 +113,7 @@ export class RepositoryService {
   }
 
   saveTrader(trader: Trader) {
-    const assets = trader.assets.map((asset) => ({
+    const assets: AssetRaw[] = trader.assets.map((asset) => ({
       coin: asset.coin.code,
       balance: asset.balance,
     }));
@@ -155,6 +160,24 @@ export class RepositoryService {
   }
 
   private loadAssets(supportedCoinList: CoinDict): Promise<AssetProps[]> {
+    return fs
+      .readFile(this.assetBalancesPath, { encoding: 'utf-8' })
+      .then((buffer) => JSON.parse(buffer))
+      .then((data: AssetRaw[]) =>
+        data.map(
+          ({ coin, balance }) =>
+            ({ coin: supportedCoinList.get(coin), balance } as AssetProps),
+        ),
+      )
+      .catch((e) => {
+        console.error(e);
+        return this.loadAssetsFromBroker(supportedCoinList);
+      });
+  }
+
+  private loadAssetsFromBroker(
+    supportedCoinList: CoinDict,
+  ): Promise<AssetProps[]> {
     return this.binanceApi.account().then((v) => {
       const assetProps = v.balances.map((balance) => {
         let coin: AltCoin | Bridge = supportedCoinList.get(balance.asset);
