@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Logger, Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -13,6 +13,6 @@ import { TradeModule } from './trade/trade.module';
   ],
   exports: [BrokerModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, Logger],
 })
 export class AppModule {}

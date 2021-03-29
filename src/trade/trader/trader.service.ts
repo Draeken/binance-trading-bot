@@ -1,4 +1,10 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  LoggerService,
+  OnModuleInit,
+} from '@nestjs/common';
 import { interval, Subject, Subscription, zip } from 'rxjs';
 import { filter, map, scan, withLatestFrom } from 'rxjs/operators';
 import { BrokerService } from 'src/broker/broker.service';
@@ -31,6 +37,7 @@ export class TraderService implements OnModuleInit {
   private supportedCoins: CoinDict;
 
   constructor(
+    @Inject(Logger) private readonly logger: LoggerService,
     @Inject('TRADE_OPTIONS') tradeOptions: TradeOptions,
     private broker: BrokerService,
     private repo: RepositoryService,
@@ -66,7 +73,7 @@ export class TraderService implements OnModuleInit {
     });
     this.candlestickSub = zip(
       ...Object.values(this.rawCandleSubjects),
-    ).subscribe((vals) =>
+    ).subscribe((vals) => {
       this.updateCoins(
         vals.map((val) => {
           const close = val.close;
@@ -77,8 +84,8 @@ export class TraderService implements OnModuleInit {
             trending: close - open,
           };
         }),
-      ),
-    );
+      );
+    });
   }
 
   stopTickers() {
@@ -99,11 +106,13 @@ export class TraderService implements OnModuleInit {
   }
 
   private updateCoins(coinsUpdate: CoinsUpdate[]) {
+    this.logger.verbose({ message: `update coins with`, coinsUpdate });
     this.supportedCoins.updateCoins(coinsUpdate);
     const trade = this.trader.evaluateMarket();
     if (!trade) {
       return;
     }
+    this.logger.verbose({ message: `new trade`, trade });
     this.trader.addOperation(
       new Operation({
         ...trade,
@@ -116,6 +125,7 @@ export class TraderService implements OnModuleInit {
   private executeTrade(trade: Trade) {
     const { type, base, quote } = trade.operation;
     const marketName = base.code + quote.code;
+    this.logger.verbose({ message: `execute ${type} trade on: ${marketName}` });
     this.broker
       .price(marketName)
       .then((price) => {
@@ -134,6 +144,9 @@ export class TraderService implements OnModuleInit {
       .then((res) => {
         trade.updateAfterInit(res);
         if (res.status !== TradeStatus.FILLED) {
+          this.logger.verbose({
+            message: `add ongoing trade: ${trade.marketName} - ${trade.orderId}`,
+          });
           this.ongoingTradeSubject.next({ action: 'ADD', trade });
         }
       });
@@ -141,8 +154,14 @@ export class TraderService implements OnModuleInit {
 
   private updateTrades(trades: Set<Trade>) {
     trades.forEach((trade) => {
+      this.logger.verbose({
+        message: `ask order status for trade: ${trade.marketName} - ${trade.orderId}`,
+      });
       this.broker.orderStatus(trade.marketName, trade.orderId).then((res) => {
         if (res.status === TradeStatus.FILLED) {
+          this.logger.verbose({
+            message: `remove filled trade: ${trade.marketName} - ${trade.orderId}`,
+          });
           this.ongoingTradeSubject.next({ action: 'REMOVE', trade });
         }
         trade.update(res);

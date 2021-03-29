@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, LoggerService } from '@nestjs/common';
 import { promises as fs } from 'fs';
 import { ratio } from 'src/broker/binance.orm-mapper';
 import { BrokerService } from 'src/broker/broker.service';
@@ -31,6 +31,7 @@ export class RepositoryService {
   private bridge: Bridge;
 
   constructor(
+    @Inject(Logger) private readonly logger: LoggerService,
     @Inject('TRADE_OPTIONS') tradeOptions: TradeOptions,
     private binanceApi: BrokerService,
   ) {}
@@ -44,9 +45,21 @@ export class RepositoryService {
       .readFile(this.supportedCoinListPath, {
         encoding: 'utf-8',
       })
-      .then((buffer) => JSON.parse(buffer))
+      .then((buffer) => {
+        this.logger.verbose(
+          {
+            message: 'read supported coin list from file',
+            buffer,
+          },
+          'repository.service',
+        );
+        return JSON.parse(buffer);
+      })
       .catch((reason) => {
-        console.error(reason);
+        this.logger.error({
+          message: "couldn't read coin list from file",
+          reason,
+        });
         return [];
       })
       .then((list: string[]) => list.map((code) => new AltCoin({ code })));
@@ -55,7 +68,10 @@ export class RepositoryService {
   loadCoinInfos(coins: CoinDict) {
     return fs
       .readFile(this.coinInfosPath, { encoding: 'utf-8' })
-      .then((buffer) => JSON.parse(buffer))
+      .then((buffer) => {
+        this.logger.verbose({ message: 'read coin infos from file', buffer });
+        return JSON.parse(buffer);
+      })
       .then((dict: CoinInfoRaw) => {
         const missingInfo: AltCoin[] = [];
         coins.toList().forEach((coin) => {
@@ -72,13 +88,19 @@ export class RepositoryService {
               });
             });
           } else {
+            this.logger.verbose({
+              message: `no saved info for coin ${coin.code}`,
+            });
             missingInfo.push(coin);
           }
         });
         return missingInfo;
       })
       .catch((reason) => {
-        console.error(reason);
+        this.logger.error({
+          message: "couldn't read coin infos from file",
+          reason,
+        });
         return coins.toList();
       })
       .then((missingInfoCoins) => {
@@ -145,7 +167,18 @@ export class RepositoryService {
         })),
       };
     }
-    fs.writeFile(this.coinInfosPath, JSON.stringify(dictToSave));
+    this.logger.verbose({
+      message: `save coin infos on file`,
+      data: dictToSave,
+    });
+    fs.writeFile(this.coinInfosPath, JSON.stringify(dictToSave)).catch(
+      (reason) => {
+        this.logger.error({
+          message: "couldn't write coin infos on file",
+          reason,
+        });
+      },
+    );
   }
 
   private loadCoinsRatio(supportedCoinList: AltCoin[]): Promise<ratios> {
@@ -153,7 +186,10 @@ export class RepositoryService {
       .readFile(this.ratioCoinsTablePath, {
         encoding: 'utf-8',
       })
-      .then((buffer) => JSON.parse(buffer))
+      .then((buffer) => {
+        this.logger.verbose({ message: 'read coins ratio from file', buffer });
+        return JSON.parse(buffer);
+      })
       .catch((_) =>
         this.initializeRatioCoinsTable(supportedCoinList.map((c) => c.code)),
       );
@@ -162,15 +198,21 @@ export class RepositoryService {
   private loadAssets(supportedCoinList: CoinDict): Promise<AssetProps[]> {
     return fs
       .readFile(this.assetBalancesPath, { encoding: 'utf-8' })
-      .then((buffer) => JSON.parse(buffer))
+      .then((buffer) => {
+        this.logger.verbose({ message: 'read assets from file', buffer });
+        return JSON.parse(buffer);
+      })
       .then((data: AssetRaw[]) =>
         data.map(
           ({ coin, balance }) =>
             ({ coin: supportedCoinList.get(coin), balance } as AssetProps),
         ),
       )
-      .catch((e) => {
-        console.error(e);
+      .catch((reason) => {
+        this.logger.error({
+          message: "couldn't read assets from file",
+          reason,
+        });
         return this.loadAssetsFromBroker(supportedCoinList);
       });
   }
@@ -185,12 +227,10 @@ export class RepositoryService {
           if (balance.asset === this.bridge.code) {
             coin = this.bridge;
           } else {
-            console.log(
-              'coin ',
-              balance.asset,
-              ' not found in supported coin list',
-              supportedCoinList.toList(),
-            );
+            this.logger.verbose({
+              message: `coin: ${balance.asset} not in supported coin list`,
+              list: supportedCoinList.toList(),
+            });
           }
         }
         return {
