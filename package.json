@@ -38,7 +38,7 @@
   "devDependencies": {
     "@nestjs/cli": "^7.5.6",
     "@nestjs/schematics": "^7.2.7",
-    "@nestjs/testing": "^7.6.13",
+    "@nestjs/testing": "^7.6.15",
     "@types/express": "^4.17.11",
     "@types/jest": "^26.0.20",
     "@types/node": "^14.14.31",
@@ -63,8 +63,11 @@
       "json",
       "ts"
     ],
-    "rootDir": "src",
-    "testRegex": ".*\\.spec\\.ts$",
+    "rootDir": "./",
+    "modulePaths": [
+      "<rootDir>"
+    ],
+    "testRegex": "repository.service.spec",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },

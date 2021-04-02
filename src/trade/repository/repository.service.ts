@@ -41,10 +41,7 @@ export class RepositoryService {
   }
 
   loadSupportedCoins() {
-    return fs
-      .readFile(this.supportedCoinListPath, {
-        encoding: 'utf-8',
-      })
+    return this.readFile(this.supportedCoinListPath)
       .then((buffer) => {
         this.logger.verbose(
           {
@@ -66,8 +63,7 @@ export class RepositoryService {
   }
 
   loadCoinInfos(coins: CoinDict) {
-    return fs
-      .readFile(this.coinInfosPath, { encoding: 'utf-8' })
+    return this.readFile(this.coinInfosPath)
       .then((buffer) => {
         this.logger.verbose({ message: 'read coin infos from file', buffer });
         return JSON.parse(buffer);
@@ -154,6 +150,10 @@ export class RepositoryService {
     ]);
   }
 
+  private readFile(path: string) {
+    return fs.readFile(path, { encoding: 'utf-8' });
+  }
+
   private saveCoinInfos(coins: CoinDict) {
     const dict = coins.toDict();
     const dictToSave: CoinInfoRaw = {};
@@ -182,10 +182,7 @@ export class RepositoryService {
   }
 
   private loadCoinsRatio(supportedCoinList: AltCoin[]): Promise<ratios> {
-    return fs
-      .readFile(this.ratioCoinsTablePath, {
-        encoding: 'utf-8',
-      })
+    return this.readFile(this.ratioCoinsTablePath)
       .then((buffer) => {
         this.logger.verbose({ message: 'read coins ratio from file', buffer });
         return JSON.parse(buffer);
@@ -196,8 +193,7 @@ export class RepositoryService {
   }
 
   private loadAssets(supportedCoinList: CoinDict): Promise<AssetProps[]> {
-    return fs
-      .readFile(this.assetBalancesPath, { encoding: 'utf-8' })
+    return this.readFile(this.assetBalancesPath)
       .then((buffer) => {
         this.logger.verbose({ message: 'read assets from file', buffer });
         return JSON.parse(buffer);
