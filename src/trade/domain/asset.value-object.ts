@@ -31,6 +31,12 @@ export class Asset {
     return this.coin.isBridge || (this.coin as AltCoin).hasPair(coin);
   }
 
+  isTradable(factor: number) {
+    return this.coin.isBridge
+      ? false
+      : this.balance * factor > (this.coin as AltCoin).filters.quantity.min;
+  }
+
   private validate() {
     if (this.coin == null) {
       throw new InvalidProps<AssetProps>('coin not defined', 'coin');

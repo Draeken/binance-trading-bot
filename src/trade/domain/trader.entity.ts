@@ -10,6 +10,8 @@ export interface TraderProps {
 }
 
 export class Trader {
+  private readonly fee = 0.001;
+  private readonly maxTradeFactor = 0.5;
   private _assets: Asset[] = [];
   private _bridgeAsset: Asset;
   private threshold: Threshold;
@@ -46,8 +48,10 @@ export class Trader {
 
   evaluateMarket() {
     const bestTrades = this._assets
-      .filter((asset) =>
-        this.operations.every((op) => asset.coin.code !== op.fromCoin.code),
+      .filter(
+        (asset) =>
+          this.operations.every((op) => asset.coin.code !== op.fromCoin.code) &&
+          asset.isTradable(this.maxTradeFactor),
       )
       .map((asset) => ({
         asset,
