@@ -100,21 +100,29 @@ export class RepositoryService {
         return coins.toList();
       })
       .then((missingInfoCoins) => {
+        if (missingInfoCoins.length === 0) {
+          return;
+        }
         const coinsMarket = missingInfoCoins.map(
           (coin) => coin.code + this.bridge.code,
         );
+
         this.binanceApi.exchangeInfo(...coinsMarket).then(async (infos) => {
           const allPairs = await this.binanceApi.allPairs();
           missingInfoCoins.forEach((coin, i) => {
             const coinMarket = coin.code + this.bridge.code;
             const coinFilters = infos[coinMarket];
+            this.logger.verbose({
+              message: `update filters for ${coin.code}`,
+              coinFilters,
+            });
             coin.updateFilters(coinFilters);
             addPairs(coin, i, missingInfoCoins, allPairs);
           });
         });
         this.saveCoinInfos(coins);
-        return coins;
-      });
+      })
+      .then(() => coins);
   }
 
   loadTrader(supportedCoinList: CoinDict): Promise<TraderProps> {
@@ -288,25 +296,25 @@ export class RepositoryService {
 
 const addPairs = (
   coin: AltCoin,
-  i: number,
+  startIndex: number,
   list: AltCoin[],
   symbolSet: Set<string>,
 ): AltCoin => {
-  for (let index = i; index < list.length; ++index) {
+  for (let searchIndex = startIndex; searchIndex < list.length; ++searchIndex) {
     let base: Coin;
     let quote: Coin;
 
-    if (symbolSet.has(coin.code + list[index].code)) {
+    if (symbolSet.has(coin.code + list[searchIndex].code)) {
       base = coin;
-      quote = list[index];
-    } else if (symbolSet.has(list[index].code + coin.code)) {
+      quote = list[searchIndex];
+    } else if (symbolSet.has(list[searchIndex].code + coin.code)) {
       quote = coin;
-      base = list[index];
+      base = list[searchIndex];
     }
 
     if (base != undefined) {
-      coin.addPair(list[i], { base, quote });
-      list[i].addPair(coin, { base, quote });
+      coin.addPair(list[searchIndex], { base, quote });
+      list[searchIndex].addPair(coin, { base, quote });
     }
   }
   return coin;
