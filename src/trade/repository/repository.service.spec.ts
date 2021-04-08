@@ -3,12 +3,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BrokerService } from 'src/broker/broker.service';
 import { CoinDict } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
+import { Trader } from '../domain/trader.entity';
 import { TradeOptions } from '../interfaces/trade-options.interface';
 import { RepositoryService } from './repository.service';
 
 const mockedBrokerService = {
   exchangeInfo: () => Promise.reject('mock'),
   allPairs: () => Promise.reject('mock'),
+  account: () => Promise.reject('mock'),
+  prices: () => Promise.reject('mock'),
 };
 
 const bridgeCode = 'USDT';
@@ -40,7 +43,7 @@ describe('RepositoryService', () => {
     expect(service).toBeDefined();
   });
 
-  it('load supported coins', async () => {
+  it('loads supported coins', async () => {
     const supportedListCoinsRaw = ['XLM'];
     jest
       .spyOn(service as any, 'readFile')
@@ -53,7 +56,7 @@ describe('RepositoryService', () => {
     expect(altCoins[0].isBridge).toBeFalsy();
   });
 
-  it('load all coins info', async () => {
+  it('loads all coins info', async () => {
     const coinInfos = {
       XLM: {
         filters: {
@@ -101,7 +104,7 @@ describe('RepositoryService', () => {
     expect(exchangeInfoSpy).not.toHaveBeenCalled();
   });
 
-  it('search for missing coin info', async () => {
+  it('searches for missing coin info', async () => {
     const coinInfos = {
       XLM: {
         filters: {
@@ -181,5 +184,141 @@ describe('RepositoryService', () => {
     expect(coinDict.get('DASH').filters.price.max).toBe(30);
     expect(coinDict.get('ADA').hasPair(coinDash)).toBeTruthy();
     expect(coinDict.get('DASH').hasPair(coinAda)).toBeTruthy();
+  });
+
+  it('loads trader props', async () => {
+    const coinXlm = new AltCoin({ code: 'XLM' });
+    const coinAda = new AltCoin({ code: 'ADA' });
+    const supportedCoins = new CoinDict([coinXlm, coinAda]);
+    const ratios = {
+      XLM: {
+        ADA: 2,
+      },
+      ADA: {
+        XLM: 0.5,
+      },
+    };
+    const assetsRaw = [
+      { coin: 'XLM', balance: 100.2842 },
+      { coin: 'ADA', balance: 0.002842 },
+    ];
+
+    jest
+      .spyOn(service as any, 'readFile')
+      .mockImplementation((path: string) => {
+        if (path === './ratio_coins_table.json') {
+          return Promise.resolve(JSON.stringify(ratios));
+        }
+        if (path === './asset_balances.json') {
+          return Promise.resolve(JSON.stringify(assetsRaw));
+        }
+        fail('path unrecognized :' + path);
+      });
+
+    const traderProps = await service.loadTrader(supportedCoins);
+    expect(traderProps.assets).toHaveLength(2);
+    expect(
+      traderProps.assets.find((asset) => asset.coin.code === 'XLM').balance,
+    ).toBe(assetsRaw[0].balance);
+    expect(traderProps.threshold.ratios['XLM']['ADA']).toBe(2);
+    expect(traderProps.threshold.coins.get('XLM').isBridge).toBeFalsy();
+  });
+
+  it('loads trader props through broker service', async () => {
+    const coinXlm = new AltCoin({ code: 'XLM' });
+    const coinAda = new AltCoin({ code: 'ADA' });
+    const supportedCoins = new CoinDict([coinXlm, coinAda]);
+    const prices = {
+      ['XLM' + bridgeCode]: '1.000',
+      ['ADA' + bridgeCode]: '2.000',
+    };
+    const assetsBroker = [
+      { asset: 'XLM', free: '100.2842' },
+      { asset: 'ADA', free: '0.002842' },
+      { asset: bridgeCode, free: '1.00000' },
+    ];
+
+    jest
+      .spyOn(service as any, 'readFile')
+      .mockImplementation(() => Promise.reject());
+    const saveRatiosSpy = jest
+      .spyOn(service as any, 'saveRatios')
+      .mockImplementation((ratios: any) => Promise.resolve(ratios));
+    jest
+      .spyOn(mockedBrokerService as any, 'prices')
+      .mockImplementation(() => Promise.resolve(prices));
+    jest
+      .spyOn(mockedBrokerService as any, 'account')
+      .mockImplementation(() => Promise.resolve({ balances: assetsBroker }));
+
+    service.bridgeCoin = bridge;
+    const traderProps = await service.loadTrader(supportedCoins);
+    expect(saveRatiosSpy).toHaveBeenCalled();
+    expect(traderProps.assets).toHaveLength(3);
+    expect(
+      traderProps.assets.find((asset) => asset.coin.code === bridgeCode)
+        .balance,
+    ).toBe(1);
+    expect(
+      traderProps.assets.find((asset) => asset.coin.code === 'XLM').balance,
+    ).toBe(100.2842);
+    expect(
+      traderProps.assets.find((asset) => asset.coin.code === 'ADA').balance,
+    ).toBe(0.002842);
+    expect(traderProps.threshold.ratios['XLM']['ADA']).toBe(0.5);
+    expect(traderProps.threshold.coins.get('XLM').isBridge).toBeFalsy();
+  });
+
+  it('saves trader props', async () => {
+    const coinXlm = new AltCoin({ code: 'XLM' });
+    const coinAda = new AltCoin({ code: 'ADA' });
+    const supportedCoins = new CoinDict([coinXlm, coinAda]);
+    const ratios = {
+      XLM: {
+        ADA: 2,
+      },
+      ADA: {
+        XLM: 0.5,
+      },
+    };
+    const trader = new Trader({
+      assets: [
+        { balance: 1.001, coin: coinXlm },
+        { balance: 0.001, coin: coinAda },
+        { balance: 1, coin: bridge },
+      ],
+      threshold: { coins: supportedCoins, ratios },
+    });
+
+    service.bridgeCoin = bridge;
+
+    const saveAssetSpy = jest
+      .spyOn(service as any, 'saveAssets')
+      .mockImplementation(
+        (assets: Array<{ balance: number; coin: string }>) => {
+          expect(assets).toHaveLength(3);
+          expect(assets.find((asset) => asset.coin === 'XLM').balance).toBe(
+            1.001,
+          );
+          expect(assets.find((asset) => asset.coin === 'ADA').balance).toBe(
+            0.001,
+          );
+          expect(
+            assets.find((asset) => asset.coin === bridgeCode).balance,
+          ).toBe(1);
+          return Promise.resolve();
+        },
+      );
+    const saveRatiosSpy = jest
+      .spyOn(service as any, 'saveRatios')
+      .mockImplementation((ratios) => {
+        expect(ratios['XLM']['ADA']).toBe(2);
+        expect(ratios['ADA']['XLM']).toBe(0.5);
+        return Promise.resolve();
+      });
+
+    await service.saveTrader(trader);
+    expect(saveAssetSpy).toHaveBeenCalledTimes(1);
+    expect(saveRatiosSpy).toHaveBeenCalledTimes(1);
   });
 });

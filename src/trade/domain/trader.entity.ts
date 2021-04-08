@@ -29,20 +29,6 @@ export class Trader {
         this._assets.push(asset);
       }
     }
-    this._assets = props.assets
-      .map((a) => {
-        try {
-          return new Asset(a);
-        } catch (e) {
-          if (
-            !(e instanceof InvalidProps) ||
-            (e as InvalidProps<AssetProps>).prop !== 'coin'
-          ) {
-            throw e;
-          }
-        }
-      })
-      .filter((a) => a != null);
     this.threshold = new Threshold(props.threshold);
   }
 
