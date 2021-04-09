@@ -15,7 +15,7 @@ export class Trader {
   private _assets: Asset[] = [];
   private _bridgeAsset: Asset;
   private threshold: Threshold;
-  private operations: Operation[];
+  private operations: Operation[] = [];
 
   constructor(props: TraderProps) {
     for (const assetProps of props.assets) {
@@ -44,13 +44,12 @@ export class Trader {
         trade: this.threshold.findBestTrade(asset.coin as AltCoin, 0.001),
       }))
       .filter((t) => t.trade[1] > 1);
-    const bestTrade = bestTrades.reduce(
-      (acc, cur) => (acc.trade[1] > cur.trade[1] ? acc : cur),
-      undefined,
-    );
-    if (!bestTrade) {
+    if (bestTrades.length === 0) {
       return;
     }
+    const bestTrade = bestTrades.reduce((acc, cur) =>
+      acc.trade[1] > cur.trade[1] ? acc : cur,
+    );
     return {
       asset: bestTrade.asset,
       target: bestTrade.trade[0],

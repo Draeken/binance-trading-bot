@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger, LoggerService } from '@nestjs/common';
 import { CoinValueFilter } from 'src/trade/domain/coin.entity';
 import {
   TradeBaseQuoteAmount,
@@ -13,7 +13,6 @@ import {
   statusToEnum,
   stepToPrecision,
 } from './binance.orm-mapper';
-import { EXCHANGE_PLATFORM } from './broker.module';
 import {
   BinanceAPIOrderResponse,
   BinanceAPIResponseError,
@@ -26,12 +25,17 @@ import {
   FilterSymbolPrice,
 } from './interfaces/binance-api.interface';
 
+const EXCHANGE_PLATFORM = 'EXCHANGEPLATFORM';
+
 @Injectable()
 export class BrokerService {
   private client: BinanceApiClient;
   private pairs = new Set<string>();
 
-  constructor(@Inject(EXCHANGE_PLATFORM) exchangePlatform: BinanceApiClient) {
+  constructor(
+    @Inject(Logger) private readonly logger: LoggerService,
+    @Inject(EXCHANGE_PLATFORM) exchangePlatform: BinanceApiClient,
+  ) {
     this.client = exchangePlatform;
   }
 
@@ -136,10 +140,25 @@ export class BrokerService {
     price: number,
     flags?: BinanceOrderFlags,
   ) {
-    return this.client
-      .buy(symbol, quantity, price, flags)
-      .then(throwIfResponseError)
-      .then(orderResponseToTradeInit);
+    this.logger.log({ message: 'buy order', symbol, quantity, price, flags });
+
+    const base = quantity;
+    const quote = -quantity * price;
+    const amount = {
+      base,
+      quote,
+    };
+    const mockResponse = {
+      amount,
+      id: 42,
+      price,
+      status: TradeStatus.FILLED,
+    };
+    return Promise.resolve(mockResponse);
+    // return this.client
+    //   .buy(symbol, quantity, price, flags)
+    //   .then(throwIfResponseError)
+    //   .then(orderResponseToTradeInit);
   }
 
   sell(
@@ -148,10 +167,25 @@ export class BrokerService {
     price: number,
     flags?: BinanceOrderFlags,
   ) {
-    return this.client
-      .sell(symbol, quantity, price, flags)
-      .then(throwIfResponseError)
-      .then(orderResponseToTradeInit);
+    this.logger.log({ message: 'buy order', symbol, quantity, price, flags });
+
+    const base = -quantity;
+    const quote = quantity * price;
+    const amount = {
+      base,
+      quote,
+    };
+    const mockResponse = {
+      amount,
+      id: 42,
+      price,
+      status: TradeStatus.FILLED,
+    };
+    return Promise.resolve(mockResponse);
+    // return this.client
+    //   .sell(symbol, quantity, price, flags)
+    //   .then(throwIfResponseError)
+    //   .then(orderResponseToTradeInit);
   }
 
   marketBuy(symbol: string, quantity: number, flags?: BinanceOrderFlags) {

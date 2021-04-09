@@ -1,18 +1,15 @@
-import { Logger, Module } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { BrokerModule } from './broker/broker.module';
 import { TradeModule } from './trade/trade.module';
+import { SharedModule } from './shared/shared.module';
 
 @Module({
   imports: [
-    BrokerModule,
     ConfigModule.forRoot(),
     TradeModule.register({ bridge: 'USDT', brokerCount: 1 }),
+    SharedModule,
   ],
-  exports: [BrokerModule],
   controllers: [AppController],
-  providers: [AppService, Logger],
 })
 export class AppModule {}

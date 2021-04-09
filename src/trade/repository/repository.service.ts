@@ -107,20 +107,22 @@ export class RepositoryService {
           (coin) => coin.code + this.bridge.code,
         );
 
-        this.binanceApi.exchangeInfo(...coinsMarket).then(async (infos) => {
-          const allPairs = await this.binanceApi.allPairs();
-          missingInfoCoins.forEach((coin, i) => {
-            const coinMarket = coin.code + this.bridge.code;
-            const coinFilters = infos[coinMarket];
-            this.logger.verbose({
-              message: `update filters for ${coin.code}`,
-              coinFilters,
+        this.binanceApi
+          .exchangeInfo(...coinsMarket)
+          .then(async (infos) => {
+            const allPairs = await this.binanceApi.allPairs();
+            missingInfoCoins.forEach((coin, i) => {
+              const coinMarket = coin.code + this.bridge.code;
+              const coinFilters = infos[coinMarket];
+              this.logger.verbose({
+                message: `update filters for ${coin.code}`,
+                coinFilters,
+              });
+              coin.updateFilters(coinFilters);
+              addPairs(coin, i, missingInfoCoins, allPairs);
             });
-            coin.updateFilters(coinFilters);
-            addPairs(coin, i, missingInfoCoins, allPairs);
-          });
-        });
-        this.saveCoinInfos(coins);
+          })
+          .then(() => this.saveCoinInfos(coins));
       })
       .then(() => coins);
   }

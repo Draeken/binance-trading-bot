@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   LoggerService,
+  OnApplicationBootstrap,
   OnModuleInit,
 } from '@nestjs/common';
 import { interval, Subject, Subscription, zip } from 'rxjs';
@@ -23,7 +24,7 @@ interface TradeSubjectAction {
 }
 
 @Injectable()
-export class TraderService implements OnModuleInit {
+export class TraderService implements OnModuleInit, OnApplicationBootstrap {
   static readonly ongoingTradePoolingIntervalMS = 1000;
   private ongoingTradeSubject: Subject<TradeSubjectAction> = new Subject();
   private ongoingTrade: Subscription;
@@ -59,6 +60,10 @@ export class TraderService implements OnModuleInit {
       .then((traderProps) => (this.trader = new Trader(traderProps)));
   }
 
+  async onApplicationBootstrap() {
+    this.startTickers();
+  }
+
   startTickers() {
     const marketList = this.coinList().map((c) => this.altCoinToMarket(c));
     this.rawCandleSubjects = marketList.reduce(
@@ -79,7 +84,7 @@ export class TraderService implements OnModuleInit {
           const close = val.close;
           const open = val.open;
           return {
-            code: val.coin,
+            code: val.coin.slice(0, -this.bridge.code.length),
             valuation: close,
             trending: close - open,
           };

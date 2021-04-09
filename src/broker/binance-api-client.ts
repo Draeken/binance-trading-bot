@@ -297,7 +297,12 @@ export class BinanceApiClient {
         }
       }
       if (!cb) return;
-      if (response && response.status !== 200) return cb(response);
+      if (response && response.status !== 200) {
+        return response.json().then(
+          (body) => cb({ status: response.status, body }),
+          (err) => cb(err),
+        );
+      }
       return response.json().then(
         (data) => cb(null, data),
         (err) => cb(err),
@@ -334,6 +339,7 @@ export class BinanceApiClient {
     const signature = createHmac('sha256', this.options.APISECRET)
       .update(query)
       .digest('hex');
+    console.log('signature', signature, 'apisecret', this.options.APISECRET);
     if (method === 'POST') {
       data.signature = signature;
       const opt = this.reqObjPOST(data, method, this.options.APIKEY);
