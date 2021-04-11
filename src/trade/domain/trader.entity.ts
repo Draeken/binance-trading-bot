@@ -62,6 +62,10 @@ export class Trader {
     operation.onFinishCB = (targetBalance: number) => {
       const i = this.operations.findIndex((o) => o === operation);
       this.operations.splice(i, 1);
+
+      if (Number.isNaN(targetBalance)) {
+        return;
+      }
       const targetCoin = operation.toCoin;
       const targetAsset =
         this._assets.find((a) => a.coin === targetCoin) ??
@@ -77,6 +81,7 @@ export class Trader {
         );
       }
     };
+    operation.start();
   }
 
   get ratios() {

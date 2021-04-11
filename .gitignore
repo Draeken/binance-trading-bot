@@ -36,3 +36,4 @@ lerna-debug.log*
 .env
 ratio_coins_table.json
 coin_infos.json
+asset_balances.json

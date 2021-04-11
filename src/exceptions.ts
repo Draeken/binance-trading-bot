@@ -11,3 +11,22 @@ export class InvalidProps<P> extends Error {
     return this._prop;
   }
 }
+
+export class FailedCoinFilter extends Error {
+  private _message: string;
+  constructor(
+    coinCode: string,
+    filterName: string,
+    expected: number,
+    actual: number,
+  ) {
+    const message = `Failed filter: ${filterName} on ${coinCode}. Expected: ${expected}, receive: ${actual}`;
+    super(message);
+    this._message = message;
+    Error.captureStackTrace(this, this.constructor);
+  }
+
+  get message() {
+    return this._message;
+  }
+}

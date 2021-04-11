@@ -28,6 +28,7 @@ async function bootstrap() {
     }),
   });
   const appPort = app.get(ConfigService).get('PORT');
+  app.enableShutdownHooks();
   await app.listen(appPort);
 }
 bootstrap();

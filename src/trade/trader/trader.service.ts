@@ -4,6 +4,7 @@ import {
   Logger,
   LoggerService,
   OnApplicationBootstrap,
+  OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
 import { interval, Subject, Subscription, zip } from 'rxjs';
@@ -12,7 +13,7 @@ import { BrokerService } from 'src/broker/broker.service';
 import { CoinDict, CoinsUpdate } from '../domain/coin-dict.entity';
 import { AltCoin, Bridge } from '../domain/coin.entity';
 import { Operation } from '../domain/operation.entity';
-import { Trade, TradeStatus } from '../domain/trade.entity';
+import { Trade, TradeStatus, TradeUpdateProps } from '../domain/trade.entity';
 import { Trader } from '../domain/trader.entity';
 import { Candlestick } from '../interfaces/candlestick.interface';
 import { TradeOptions } from '../interfaces/trade-options.interface';
@@ -24,8 +25,9 @@ interface TradeSubjectAction {
 }
 
 @Injectable()
-export class TraderService implements OnModuleInit, OnApplicationBootstrap {
-  static readonly ongoingTradePoolingIntervalMS = 1000;
+export class TraderService
+  implements OnModuleInit, OnApplicationBootstrap, OnModuleDestroy {
+  static readonly ongoingTradePoolingIntervalMS = 3000;
   private ongoingTradeSubject: Subject<TradeSubjectAction> = new Subject();
   private ongoingTrade: Subscription;
 
@@ -60,8 +62,12 @@ export class TraderService implements OnModuleInit, OnApplicationBootstrap {
       .then((traderProps) => (this.trader = new Trader(traderProps)));
   }
 
-  async onApplicationBootstrap() {
+  onApplicationBootstrap() {
     this.startTickers();
+  }
+
+  async onModuleDestroy() {
+    return this.repo.saveTrader(this.trader);
   }
 
   startTickers() {
@@ -122,7 +128,7 @@ export class TraderService implements OnModuleInit, OnApplicationBootstrap {
       new Operation({
         ...trade,
         bridgeAsset: this.trader.bridgeAsset,
-        onTrade: this.executeTrade,
+        onTrade: this.executeTrade.bind(this),
       }),
     );
   }
@@ -146,8 +152,20 @@ export class TraderService implements OnModuleInit, OnApplicationBootstrap {
           });
         }
       })
+      .catch((e) => {
+        this.logger.error({ message: 'Error while executing trade', e });
+        return {
+          amount: { base: 0, quote: 0 },
+          id: -1,
+          price: -1,
+          status: TradeStatus.CANCELED,
+        } as TradeUpdateProps;
+      })
       .then((res) => {
         trade.updateAfterInit(res);
+        if (res.status === TradeStatus.CANCELED) {
+          return;
+        }
         if (res.status !== TradeStatus.FILLED) {
           this.logger.verbose({
             message: `add ongoing trade: ${trade.marketName} - ${trade.orderId}`,
@@ -178,7 +196,9 @@ export class TraderService implements OnModuleInit, OnApplicationBootstrap {
     const tradeSet$ = this.ongoingTradeSubject.pipe(
       scan((tradeSet, { action, trade }) => {
         if (action === 'ADD') {
-          return new Set(tradeSet).add(trade);
+          const res = new Set(tradeSet);
+          res.add(trade);
+          return res;
         } else if (action === 'REMOVE') {
           const res = new Set(tradeSet);
           res.delete(trade);
@@ -192,6 +212,6 @@ export class TraderService implements OnModuleInit, OnApplicationBootstrap {
         map(([_, trades]) => trades),
         filter((trades) => trades.size > 0),
       )
-      .subscribe(this.updateTrades);
+      .subscribe(this.updateTrades.bind(this));
   }
 }

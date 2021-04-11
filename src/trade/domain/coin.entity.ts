@@ -1,3 +1,5 @@
+import { FailedCoinFilter } from 'src/exceptions';
+
 export interface CoinProps {
   code: string;
 }
@@ -80,10 +82,20 @@ export class AltCoin implements Coin {
 
   checkQuantity(quantity: number) {
     if (quantity < this._quantityFilters.min) {
-      throw new Error('quantity too small: ' + quantity);
+      throw new FailedCoinFilter(
+        this.code,
+        'quantityFilter.min',
+        this._quantityFilters.min,
+        quantity,
+      );
     }
     if (quantity > this._quantityFilters.max && this._quantityFilters.max > 0) {
-      throw new Error('quantity too large: ' + quantity);
+      throw new FailedCoinFilter(
+        this.code,
+        'quantityFilter.max',
+        this._quantityFilters.max,
+        quantity,
+      );
     }
     const precisionFactor = 10 ** this._quantityFilters.precision;
     return Math.floor(quantity * precisionFactor) / precisionFactor;

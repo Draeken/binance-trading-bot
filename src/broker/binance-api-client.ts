@@ -339,7 +339,6 @@ export class BinanceApiClient {
     const signature = createHmac('sha256', this.options.APISECRET)
       .update(query)
       .digest('hex');
-    console.log('signature', signature, 'apisecret', this.options.APISECRET);
     if (method === 'POST') {
       data.signature = signature;
       const opt = this.reqObjPOST(data, method, this.options.APIKEY);

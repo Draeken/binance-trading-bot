@@ -211,7 +211,10 @@ export class RepositoryService {
       .then((data: AssetRaw[]) =>
         data.map(
           ({ coin, balance }) =>
-            ({ coin: supportedCoinList.get(coin), balance } as AssetProps),
+            ({
+              coin: this.getCoinFromCode(coin, supportedCoinList),
+              balance,
+            } as AssetProps),
         ),
       )
       .catch((reason) => {
@@ -228,17 +231,7 @@ export class RepositoryService {
   ): Promise<AssetProps[]> {
     return this.binanceApi.account().then((v) => {
       const assetProps = v.balances.map((balance) => {
-        let coin: AltCoin | Bridge = supportedCoinList.get(balance.asset);
-        if (!coin) {
-          if (balance.asset === this.bridge.code) {
-            coin = this.bridge;
-          } else {
-            this.logger.verbose({
-              message: `coin: ${balance.asset} not in supported coin list`,
-              list: supportedCoinList.toList(),
-            });
-          }
-        }
+        const coin = this.getCoinFromCode(balance.asset, supportedCoinList);
         return {
           balance: Number.parseFloat(balance.free),
           coin,
@@ -249,6 +242,21 @@ export class RepositoryService {
       }
       return assetProps;
     });
+  }
+
+  private getCoinFromCode(code: string, coinDict: CoinDict): AltCoin | Bridge {
+    let coin: AltCoin | Bridge = coinDict.get(code);
+    if (!coin) {
+      if (code === this.bridge.code) {
+        coin = this.bridge;
+      } else {
+        this.logger.verbose({
+          message: `coin: ${code} not in supported coin list`,
+          list: coinDict.toList(),
+        });
+      }
+    }
+    return coin;
   }
 
   private get prices() {

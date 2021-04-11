@@ -39,6 +39,7 @@ export class Operation {
         this.target,
         this.amount,
         this.handleLastTrade(this.asset),
+        () => this.onFinish(NaN),
       );
     } else {
       this.firstTrade = new Trade(
@@ -46,6 +47,7 @@ export class Operation {
         this.bridgeAsset.coin,
         this.amount,
         (tradeAmount) => this.handleFirstTradeFilled(tradeAmount),
+        () => this.onFinish(NaN),
       );
     }
     this.onTrade(this.firstTrade);
@@ -92,6 +94,7 @@ export class Operation {
         this.target,
         this.bridgeAsset.balance,
         this.handleLastTrade(this.bridgeAsset),
+        () => this.onFinish(NaN),
       );
       this.onTrade(this.secondTrade);
     }

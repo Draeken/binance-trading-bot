@@ -150,9 +150,9 @@ export class BrokerService {
     };
     const mockResponse = {
       amount,
-      id: 42,
+      id: Date.now() % 10000,
       price,
-      status: TradeStatus.FILLED,
+      status: TradeStatus.NEW,
     };
     return Promise.resolve(mockResponse);
     // return this.client
@@ -177,9 +177,9 @@ export class BrokerService {
     };
     const mockResponse = {
       amount,
-      id: 42,
+      id: Date.now() % 10000,
       price,
-      status: TradeStatus.FILLED,
+      status: TradeStatus.NEW,
     };
     return Promise.resolve(mockResponse);
     // return this.client
@@ -197,6 +197,17 @@ export class BrokerService {
   }
 
   orderStatus(symbol: string, orderId: number) {
+    const amount = {
+      base: Math.random() * 10 - 5,
+      quote: Math.random() * 10 - 5,
+    };
+    const mockResponse = {
+      amount,
+      id: orderId,
+      price: Math.random() * 10,
+      status: TradeStatus.FILLED,
+    };
+    return Promise.resolve(mockResponse);
     return this.client
       .orderStatus(symbol, orderId)
       .then(throwIfResponseError)

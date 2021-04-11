@@ -45,6 +45,7 @@ export class Trade {
     private _to: Coin,
     private _amount: number,
     private onFilled: (amount?: TradeFromToAmount) => void,
+    private onCancelled: () => void,
   ) {
     this.createdAt = Date.now();
     this.lastUpdateAt = Date.now();
@@ -128,6 +129,8 @@ export class Trade {
         return this.onFilled(this.tradeAmountBQtoFT());
       case TradeStatus.PARTIALLY_FILLED:
         return this.onFilled();
+      case TradeStatus.CANCELED:
+        return this.onCancelled();
       default:
         return;
     }
