@@ -123,7 +123,10 @@ export class TraderService
     if (!trade) {
       return;
     }
-    this.logger.verbose({ message: `new trade`, trade });
+    this.logger.verbose({
+      message: `new trade: ${trade.asset.coin.code} to ${trade.target.code}`,
+      trade,
+    });
     this.trader.addOperation(
       new Operation({
         ...trade,

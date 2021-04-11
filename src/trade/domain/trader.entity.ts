@@ -41,7 +41,7 @@ export class Trader {
       )
       .map((asset) => ({
         asset,
-        trade: this.threshold.findBestTrade(asset.coin as AltCoin, 0.001),
+        trade: this.threshold.findBestTrade(asset.coin as AltCoin, this.fee),
       }))
       .filter((t) => t.trade[1] > 1);
     if (bestTrades.length === 0) {

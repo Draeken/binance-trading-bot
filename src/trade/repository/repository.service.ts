@@ -107,7 +107,7 @@ export class RepositoryService {
           (coin) => coin.code + this.bridge.code,
         );
 
-        this.binanceApi
+        return this.binanceApi
           .exchangeInfo(...coinsMarket)
           .then(async (infos) => {
             const allPairs = await this.binanceApi.allPairs();
@@ -181,14 +181,14 @@ export class RepositoryService {
       message: `save coin infos on file`,
       data: dictToSave,
     });
-    fs.writeFile(this.coinInfosPath, JSON.stringify(dictToSave)).catch(
-      (reason) => {
+    return fs
+      .writeFile(this.coinInfosPath, JSON.stringify(dictToSave))
+      .catch((reason) => {
         this.logger.error({
           message: "couldn't write coin infos on file",
           reason,
         });
-      },
-    );
+      });
   }
 
   private loadCoinsRatio(supportedCoinList: AltCoin[]): Promise<ratios> {

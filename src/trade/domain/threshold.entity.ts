@@ -17,7 +17,7 @@ export interface ThresholdProps {
 
 export class Threshold {
   private _ratios: ratioDict;
-  private growthFactor = 1.3;
+  private growthFactor = 0.85; // + 15%
 
   constructor(props: ThresholdProps) {
     this.initRatioDict(props.coins, props.ratios);
@@ -31,9 +31,9 @@ export class Threshold {
     const coinRatios = this._ratios.get(coin);
     let bestTrade: [AltCoin, number] = [coin, 0];
     coinRatios.forEach((ratio, vsCoin) => {
-      const feeFactor =
-        1 - this.growthFactor * (coin.hasPair(vsCoin) ? fee : fee * 2);
-      const tradeValue = (coin.ratio(vsCoin) * feeFactor) / ratio;
+      const feeFactor = 1 - (coin.hasPair(vsCoin) ? fee : fee * 2);
+      const tradeValue =
+        (coin.ratio(vsCoin) * feeFactor * this.growthFactor) / ratio;
       bestTrade = tradeValue > bestTrade[1] ? [vsCoin, tradeValue] : bestTrade;
     });
     return bestTrade;

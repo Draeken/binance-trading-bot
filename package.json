@@ -67,7 +67,7 @@
     "modulePaths": [
       "<rootDir>"
     ],
-    "testRegex": "repository.service.spec",
+    "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
