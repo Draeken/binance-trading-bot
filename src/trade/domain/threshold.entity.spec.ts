@@ -45,6 +45,35 @@ describe('threshold.entity', () => {
     expect(coinABestTradeWithFees[1]).toBeLessThan(coinABestTrade[1]);
   });
 
+  it('should find best find excluding given assets', () => {
+    const coinA = new AltCoin({ code: 'A' });
+    const coinB = new AltCoin({ code: 'B' });
+    const coinC = new AltCoin({ code: 'C' });
+    const altCoins = [coinA, coinB, coinC];
+    const coins = new CoinDict(altCoins);
+    const ratios = {
+      A: {
+        B: 1,
+        C: 1,
+      },
+      B: {
+        A: 1,
+        C: 1,
+      },
+      C: {
+        A: 1,
+        B: 1,
+      },
+    };
+    coinA.updateMarket({ trending: 0, valuation: 1 });
+    coinB.updateMarket({ trending: -0.5, valuation: 0.5 });
+    coinC.updateMarket({ trending: 1, valuation: 2 });
+
+    const threshold = new Threshold({ coins, ratios });
+    const coinABestTrade = threshold.findBestTrade(coinC, 0, [coinB]);
+    expect(coinABestTrade[0].code).toBe('A');
+  });
+
   it('should updates ratios', async () => {
     const coinA = new AltCoin({ code: 'A' });
     const coinB = new AltCoin({ code: 'B' });

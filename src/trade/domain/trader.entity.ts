@@ -1,6 +1,6 @@
 import { InvalidProps } from 'src/exceptions';
 import { Asset, AssetProps } from './asset.value-object';
-import { AltCoin } from './coin.entity';
+import { AltCoin, Coin } from './coin.entity';
 import { Operation } from './operation.entity';
 import { Threshold, ThresholdProps } from './threshold.entity';
 
@@ -22,7 +22,7 @@ export class Trader {
   private _assets: Asset[] = [];
   private _bridgeAsset: Asset;
   private firstEvaluation = true;
-  private excludedAssets: Asset[] = [];
+  private excludedCoins: Coin[] = [];
   private threshold: Threshold;
   private operations: Operation[] = [];
 
@@ -58,7 +58,7 @@ export class Trader {
         trade: this.threshold.findBestTrade(
           asset.coin as AltCoin,
           this.fee,
-          this.excludedAssets,
+          this.excludedCoins,
         ),
       }))
       .filter((t) => t.trade[1] > 1);
@@ -135,13 +135,13 @@ export class Trader {
       (acc, cur) => acc + cur.valuation,
       0,
     );
-    const excludedAssets = [];
+    const excludedAssets: Coin[] = [];
     for (const asset of this._assets) {
       if (asset.valuation / totalValuation >= this.maxRelativeQuantity) {
-        excludedAssets.push(asset);
+        excludedAssets.push(asset.coin);
       }
     }
-    this.excludedAssets = excludedAssets;
+    this.excludedCoins = excludedAssets;
   }
 
   private computeAmount(balance: number, ratioGrowth: number) {
