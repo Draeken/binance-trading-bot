@@ -28,19 +28,19 @@ describe('threshold.entity', () => {
     coinC.updateMarket({ trending: 1, valuation: 2 });
 
     const threshold = new Threshold({ coins, ratios });
-    const coinABestTrade = threshold.findBestTrade(coinA, 0);
+    const coinABestTrade = threshold.findBestTrade(coinA, 0, []);
     expect(coinABestTrade[0].code).toBe('B');
     expect(coinABestTrade[1]).toBeGreaterThan(1);
-    const coinBBestTrade = threshold.findBestTrade(coinB, 0);
+    const coinBBestTrade = threshold.findBestTrade(coinB, 0, []);
     expect(coinBBestTrade[0].code).toBe('A');
     expect(coinBBestTrade[1]).toBeLessThan(1);
-    const coinCBestTrade = threshold.findBestTrade(coinC, 0);
+    const coinCBestTrade = threshold.findBestTrade(coinC, 0, []);
     expect(coinCBestTrade[0].code).toBe('B');
     expect(coinCBestTrade[1]).toBeGreaterThan(1);
 
     expect(coinCBestTrade[1]).toBeGreaterThan(coinABestTrade[1]);
 
-    const coinABestTradeWithFees = threshold.findBestTrade(coinA, 0.1);
+    const coinABestTradeWithFees = threshold.findBestTrade(coinA, 0.1, []);
     expect(coinABestTradeWithFees[0].code).toBe('B');
     expect(coinABestTradeWithFees[1]).toBeLessThan(coinABestTrade[1]);
   });

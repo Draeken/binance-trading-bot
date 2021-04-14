@@ -1,3 +1,4 @@
+import { Asset } from './asset.value-object';
 import { CoinDict } from './coin-dict.entity';
 import { AltCoin } from './coin.entity';
 
@@ -27,10 +28,20 @@ export class Threshold {
     return this._ratios;
   }
 
-  findBestTrade(coin: AltCoin, fee: number): [AltCoin, number] {
+  findBestTrade(
+    coin: AltCoin,
+    fee: number,
+    excludedAssets: Asset[],
+  ): [AltCoin, number] {
     const coinRatios = this._ratios.get(coin);
     let bestTrade: [AltCoin, number] = [coin, 0];
     coinRatios.forEach((ratio, vsCoin) => {
+      if (
+        vsCoin === coin ||
+        excludedAssets.some((asset) => asset.coin === vsCoin)
+      ) {
+        return;
+      }
       const feeFactor = 1 - (coin.hasPair(vsCoin) ? fee : fee * 2);
       const tradeValue =
         (coin.ratio(vsCoin) * feeFactor * this.growthFactor) / ratio;

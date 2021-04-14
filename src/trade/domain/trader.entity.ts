@@ -9,11 +9,20 @@ export interface TraderProps {
   threshold: ThresholdProps;
 }
 
+interface TradeEvaluation {
+  asset: Asset;
+  target: AltCoin;
+  ratioGrowth: number;
+}
+
 export class Trader {
   private readonly fee = 0.001;
   private readonly maxTradeFactor = 0.5;
+  private readonly maxRelativeQuantity = 0.5;
   private _assets: Asset[] = [];
   private _bridgeAsset: Asset;
+  private firstEvaluation = true;
+  private excludedAssets: Asset[] = [];
   private threshold: Threshold;
   private operations: Operation[] = [];
 
@@ -27,12 +36,17 @@ export class Trader {
         this._bridgeAsset = asset;
       } else {
         this._assets.push(asset);
+        // this.assetRelativeQuantities.set(asset, 0);
       }
     }
     this.threshold = new Threshold(props.threshold);
   }
 
   evaluateMarket() {
+    if (this.firstEvaluation) {
+      this.updateExcludedAssets();
+      this.firstEvaluation = false;
+    }
     const bestTrades = this._assets
       .filter(
         (asset) =>
@@ -41,7 +55,11 @@ export class Trader {
       )
       .map((asset) => ({
         asset,
-        trade: this.threshold.findBestTrade(asset.coin as AltCoin, this.fee),
+        trade: this.threshold.findBestTrade(
+          asset.coin as AltCoin,
+          this.fee,
+          this.excludedAssets,
+        ),
       }))
       .filter((t) => t.trade[1] > 1);
     if (bestTrades.length === 0) {
@@ -57,8 +75,16 @@ export class Trader {
     };
   }
 
-  addOperation(operation: Operation) {
+  addOperation(trade: TradeEvaluation, operation: Operation) {
     this.operations.push(operation);
+    operation.amount = this.computeAmount(
+      trade.asset.balance,
+      trade.ratioGrowth,
+    );
+    operation.setCoins(trade.asset.coin as AltCoin, trade.target);
+    operation.addFromBalanceCB = (amount) => {
+      trade.asset.balance += amount;
+    };
     operation.onFinishCB = (targetBalance: number) => {
       const i = this.operations.findIndex((o) => o === operation);
       this.operations.splice(i, 1);
@@ -67,10 +93,14 @@ export class Trader {
         return;
       }
       const targetCoin = operation.toCoin;
-      const targetAsset =
-        this._assets.find((a) => a.coin === targetCoin) ??
-        new Asset({ coin: targetCoin, balance: targetBalance });
-      targetAsset.balance = targetBalance;
+      let targetAsset = this._assets.find((a) => a.coin === targetCoin);
+      if (!targetAsset) {
+        targetAsset = new Asset({ coin: targetCoin, balance: targetBalance });
+        this._assets.push(targetAsset);
+      } else {
+        targetAsset.balance = targetBalance;
+      }
+      this.updateExcludedAssets();
       if (operation.isDirectPair) {
         this.threshold.updateRatios(operation.fromCoin, operation.toCoin);
       } else {
@@ -98,6 +128,31 @@ export class Trader {
 
   get bridgeAsset() {
     return this._bridgeAsset;
+  }
+
+  private updateExcludedAssets() {
+    const totalValuation = this._assets.reduce(
+      (acc, cur) => acc + cur.valuation,
+      0,
+    );
+    const excludedAssets = [];
+    for (const asset of this._assets) {
+      if (asset.valuation / totalValuation >= this.maxRelativeQuantity) {
+        excludedAssets.push(asset);
+      }
+    }
+    this.excludedAssets = excludedAssets;
+  }
+
+  private computeAmount(balance: number, ratioGrowth: number) {
+    let amountFactor = this.maxTradeFactor * 0.5;
+    if (ratioGrowth > 1.15) {
+      amountFactor = this.maxTradeFactor * 0.75;
+    }
+    if (ratioGrowth > 1.3) {
+      amountFactor = this.maxTradeFactor;
+    }
+    return balance * amountFactor;
   }
 }
 

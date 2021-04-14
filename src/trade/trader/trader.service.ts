@@ -128,8 +128,8 @@ export class TraderService
       trade,
     });
     this.trader.addOperation(
+      trade,
       new Operation({
-        ...trade,
         bridgeAsset: this.trader.bridgeAsset,
         onTrade: this.executeTrade.bind(this),
       }),

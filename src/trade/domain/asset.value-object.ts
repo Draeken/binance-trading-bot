@@ -23,6 +23,13 @@ export class Asset {
     this.props.balance = balance;
   }
 
+  get valuation() {
+    return (
+      this.props.balance *
+      (this.props.coin.isBridge ? 1 : (this.props.coin as AltCoin).valuation)
+    );
+  }
+
   get isBridge() {
     return (this.coin as Bridge).isBridge == true;
   }
