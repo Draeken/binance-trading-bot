@@ -117,7 +117,6 @@ export class TraderService
   }
 
   private updateCoins(coinsUpdate: CoinsUpdate[]) {
-    this.logger.verbose({ message: `update coins with`, coinsUpdate });
     this.supportedCoins.updateCoins(coinsUpdate);
     const trade = this.trader.evaluateMarket();
     if (!trade) {

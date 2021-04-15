@@ -203,6 +203,8 @@ export class RepositoryService {
   }
 
   private loadAssets(supportedCoinList: CoinDict): Promise<AssetProps[]> {
+    // always load assets from API
+    return this.loadAssetsFromBroker(supportedCoinList);
     return this.readFile(this.assetBalancesPath)
       .then((buffer) => {
         this.logger.verbose({ message: 'read assets from file', buffer });

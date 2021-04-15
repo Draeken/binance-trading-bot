@@ -36,7 +36,6 @@ export class Trader {
         this._bridgeAsset = asset;
       } else {
         this._assets.push(asset);
-        // this.assetRelativeQuantities.set(asset, 0);
       }
     }
     this.threshold = new Threshold(props.threshold);

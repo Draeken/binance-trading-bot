@@ -142,23 +142,10 @@ export class BrokerService {
   ) {
     this.logger.log({ message: 'buy order', symbol, quantity, price, flags });
 
-    const base = quantity;
-    const quote = -quantity * price;
-    const amount = {
-      base,
-      quote,
-    };
-    const mockResponse = {
-      amount,
-      id: Date.now() % 10000,
-      price,
-      status: TradeStatus.NEW,
-    };
-    return Promise.resolve(mockResponse);
-    // return this.client
-    //   .buy(symbol, quantity, price, flags)
-    //   .then(throwIfResponseError)
-    //   .then(orderResponseToTradeInit);
+    return this.client
+      .buy(symbol, quantity, price, flags)
+      .then(throwIfResponseError)
+      .then(orderResponseToTradeInit);
   }
 
   sell(
@@ -168,24 +155,10 @@ export class BrokerService {
     flags?: BinanceOrderFlags,
   ) {
     this.logger.log({ message: 'buy order', symbol, quantity, price, flags });
-
-    const base = -quantity;
-    const quote = quantity * price;
-    const amount = {
-      base,
-      quote,
-    };
-    const mockResponse = {
-      amount,
-      id: Date.now() % 10000,
-      price,
-      status: TradeStatus.NEW,
-    };
-    return Promise.resolve(mockResponse);
-    // return this.client
-    //   .sell(symbol, quantity, price, flags)
-    //   .then(throwIfResponseError)
-    //   .then(orderResponseToTradeInit);
+    return this.client
+      .sell(symbol, quantity, price, flags)
+      .then(throwIfResponseError)
+      .then(orderResponseToTradeInit);
   }
 
   marketBuy(symbol: string, quantity: number, flags?: BinanceOrderFlags) {
@@ -197,17 +170,6 @@ export class BrokerService {
   }
 
   orderStatus(symbol: string, orderId: number) {
-    const amount = {
-      base: Math.random() * 10 - 5,
-      quote: Math.random() * 10 - 5,
-    };
-    const mockResponse = {
-      amount,
-      id: orderId,
-      price: Math.random() * 10,
-      status: TradeStatus.FILLED,
-    };
-    return Promise.resolve(mockResponse);
     return this.client
       .orderStatus(symbol, orderId)
       .then(throwIfResponseError)
