@@ -39,9 +39,10 @@ export class Asset {
   }
 
   isTradable(factor: number) {
+    const minQuantity = this.balance * factor;
     return this.coin.isBridge
       ? false
-      : this.balance * factor > (this.coin as AltCoin).filters.quantity.min;
+      : (this.coin as AltCoin).isTradable(minQuantity);
   }
 
   private validate() {

@@ -27,6 +27,7 @@ export interface CoinValueFilter {
 export interface AltCoinUpdateFiltersProps {
   price: CoinValueFilter;
   quantity: CoinValueFilter;
+  notional: number;
 }
 export class AltCoin implements Coin {
   readonly isBridge = false;
@@ -35,6 +36,7 @@ export class AltCoin implements Coin {
   private _valuation: number;
   private _quantityFilters: CoinValueFilter;
   private _priceFilters: CoinValueFilter;
+  private _notionalFilter: number;
   private pairMarketName: { [key: string]: { base: Coin; quote: Coin } } = {};
 
   constructor(props: CoinProps) {
@@ -49,10 +51,11 @@ export class AltCoin implements Coin {
     return this._valuation;
   }
 
-  get filters() {
+  get filters(): AltCoinUpdateFiltersProps {
     return {
       price: this._priceFilters,
       quantity: this._quantityFilters,
+      notional: this._notionalFilter,
     };
   }
 
@@ -78,6 +81,7 @@ export class AltCoin implements Coin {
   updateFilters(filters: AltCoinUpdateFiltersProps) {
     this._priceFilters = filters.price;
     this._quantityFilters = filters.quantity;
+    this._notionalFilter = filters.notional;
   }
 
   checkQuantity(quantity: number) {
@@ -98,7 +102,30 @@ export class AltCoin implements Coin {
       );
     }
     const precisionFactor = 10 ** this._quantityFilters.precision;
-    return Math.floor(quantity * precisionFactor) / precisionFactor;
+    const trunkedQuantity =
+      Math.floor(quantity * precisionFactor) / precisionFactor;
+    if (trunkedQuantity * this._valuation < this._notionalFilter) {
+      throw new FailedCoinFilter(
+        this.code,
+        'notional',
+        this._notionalFilter,
+        trunkedQuantity * this._valuation,
+      );
+    }
+    return trunkedQuantity;
+  }
+
+  isTradable(quantity: number) {
+    if (quantity < this._quantityFilters.min) {
+      return false;
+    }
+    if (quantity > this._quantityFilters.max && this._quantityFilters.max > 0) {
+      return false;
+    }
+    if (quantity * this._valuation < this._notionalFilter) {
+      return false;
+    }
+    return true;
   }
 
   updateMarket({

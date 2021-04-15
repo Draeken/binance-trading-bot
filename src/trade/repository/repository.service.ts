@@ -11,7 +11,11 @@ import { TradeOptions } from '../interfaces/trade-options.interface';
 
 interface CoinInfoRaw {
   [key: string]: {
-    filters: { price: CoinValueFilter; quantity: CoinValueFilter };
+    filters: {
+      price: CoinValueFilter;
+      quantity: CoinValueFilter;
+      notional: number;
+    };
     pairs: Array<{ coin: string; quote: string; base: string }>;
   };
 }
@@ -76,6 +80,7 @@ export class RepositoryService {
             coin.updateFilters({
               price: coinInfo.filters.price,
               quantity: coinInfo.filters.quantity,
+              notional: coinInfo.filters.notional,
             });
             coinInfo.pairs.forEach((pair) => {
               coin.addPair(coins.get(pair.coin), {

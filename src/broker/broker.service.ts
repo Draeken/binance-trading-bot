@@ -22,6 +22,7 @@ import {
   BinanceOrderFlags,
   BinanceSymbolInfo,
   FilterSymbolLotSize,
+  FilterSymbolMinNotional,
   FilterSymbolPrice,
 } from './interfaces/binance-api.interface';
 
@@ -83,6 +84,9 @@ export class BrokerService {
       const coinFilterQuantity = info.filters.find(
         (f) => f.filterType === 'LOT_SIZE',
       ) as FilterSymbolLotSize;
+      const coinFilterNotional = info.filters.find(
+        (f) => f.filterType === 'MIN_NOTIONAL',
+      ) as FilterSymbolMinNotional;
       return {
         price: {
           min: Number.parseFloat(coinFilterPrice.minPrice),
@@ -94,6 +98,7 @@ export class BrokerService {
           max: Number.parseFloat(coinFilterQuantity.maxQty),
           precision: stepToPrecision(coinFilterQuantity.stepSize),
         },
+        notional: Number.parseFloat(coinFilterNotional.minNotional),
       };
     };
     return this.client
@@ -115,6 +120,7 @@ export class BrokerService {
             [key: string]: {
               price: CoinValueFilter;
               quantity: CoinValueFilter;
+              notional: number;
             };
           },
         ),
@@ -154,7 +160,7 @@ export class BrokerService {
     price: number,
     flags?: BinanceOrderFlags,
   ) {
-    this.logger.log({ message: 'buy order', symbol, quantity, price, flags });
+    this.logger.log({ message: 'sell order', symbol, quantity, price, flags });
     return this.client
       .sell(symbol, quantity, price, flags)
       .then(throwIfResponseError)

@@ -65,6 +65,13 @@ export interface FilterSymbolLotSize {
   stepSize: string;
 }
 
+export interface FilterSymbolMinNotional {
+  filterType: 'MIN_NOTIONAL';
+  minNotional: string;
+  applyToMarket: true;
+  avgPriceMins: number;
+}
+
 export interface BinanceSymbolInfo {
   symbol: string;
   status: string;
@@ -79,7 +86,9 @@ export interface BinanceSymbolInfo {
   quoteOrderQtyMarketAllowed: boolean;
   isSpotTradingAllowed: boolean;
   isMarginTradingAllowed: boolean;
-  filters: Array<FilterSymbolPrice | FilterSymbolLotSize>;
+  filters: Array<
+    FilterSymbolPrice | FilterSymbolLotSize | FilterSymbolMinNotional
+  >;
 }
 
 export interface BinanceExchangeInfo {

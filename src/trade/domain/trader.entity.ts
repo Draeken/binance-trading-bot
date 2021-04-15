@@ -17,6 +17,7 @@ interface TradeEvaluation {
 
 export class Trader {
   private readonly fee = 0.001;
+  private readonly minTradeFactor = 0.25;
   private readonly maxTradeFactor = 0.5;
   private readonly maxRelativeQuantity = 0.5;
   private _assets: Asset[] = [];
@@ -50,7 +51,7 @@ export class Trader {
       .filter(
         (asset) =>
           this.operations.every((op) => asset.coin.code !== op.fromCoin.code) &&
-          asset.isTradable(this.maxTradeFactor),
+          asset.isTradable(this.minTradeFactor),
       )
       .map((asset) => ({
         asset,
@@ -144,7 +145,7 @@ export class Trader {
   }
 
   private computeAmount(balance: number, ratioGrowth: number) {
-    let amountFactor = this.maxTradeFactor * 0.5;
+    let amountFactor = this.minTradeFactor;
     if (ratioGrowth > 1.15) {
       amountFactor = this.maxTradeFactor * 0.75;
     }
