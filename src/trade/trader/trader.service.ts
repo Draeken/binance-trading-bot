@@ -64,6 +64,10 @@ export class TraderService
 
   onApplicationBootstrap() {
     this.startTickers();
+    setTimeout(
+      () => this.trader.bestTradeFor(this.supportedCoins.toList()),
+      15000,
+    );
   }
 
   async onModuleDestroy() {

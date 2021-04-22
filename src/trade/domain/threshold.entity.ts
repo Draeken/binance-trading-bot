@@ -41,11 +41,12 @@ export class Threshold {
       ) {
         return;
       }
-      const feeFactor = 1 - (coin.hasPair(vsCoin) ? fee : fee * 2);
-      const tradeValue =
-        (coin.ratio(vsCoin) * feeFactor * this.growthFactor) / ratio;
+      const feegrowthFactor =
+        (1 - (coin.hasPair(vsCoin) ? fee : fee * 2)) * this.growthFactor;
+      const tradeValue = (coin.ratio(vsCoin) * feegrowthFactor) / ratio;
       bestTrade = tradeValue > bestTrade[1] ? [vsCoin, tradeValue] : bestTrade;
     });
+    this.logTargetValuation(fee, coin, bestTrade);
     return bestTrade;
   }
 
@@ -79,5 +80,23 @@ export class Threshold {
         ),
       );
     }
+  }
+
+  private logTargetValuation(
+    fee: number,
+    coin: AltCoin,
+    [vsCoin, tradeVal]: [AltCoin, number],
+  ) {
+    const growthFactor =
+      (1 - (coin.hasPair(vsCoin) ? fee : fee * 2)) * this.growthFactor;
+    const savedRatio = this._ratios.get(coin).get(vsCoin);
+    const targetVal = coin.valuation * (growthFactor / savedRatio);
+    console.log(
+      `trade val: ${tradeVal}. To make a trade from ${coin.code} to ${
+        vsCoin.code
+      }, valuation must go from ${
+        vsCoin.valuation
+      } to below ${targetVal}, ratios: ${coin.ratio(vsCoin)} -- ${savedRatio}`,
+    );
   }
 }

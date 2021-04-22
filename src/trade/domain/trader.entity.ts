@@ -42,6 +42,15 @@ export class Trader {
     this.threshold = new Threshold(props.threshold);
   }
 
+  bestTradeFor(coins: AltCoin[]) {
+    return coins
+      .map((coin) => ({
+        asset: coin,
+        trade: this.threshold.findBestTrade(coin, this.fee, this.excludedCoins),
+      }))
+      .filter((t) => t.trade[1] > 1);
+  }
+
   evaluateMarket() {
     if (this.firstEvaluation) {
       this.updateExcludedAssets();
